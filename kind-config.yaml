@@ -3,11 +3,11 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
 # 1. Master node (Control Plane)
-- role: control-Plane
-  kubeamConfigPatches:
+- role: control-plane
+  kubeadmConfigPatches:
   - |
     kind: InitConfiguration
-    nodeRegisteration:
+    nodeRegistration:
       kubeletExtraArgs:
         node-labels: "ingress-ready=true"
   extraPortMappings:
@@ -15,7 +15,7 @@ nodes:
     hostPort: 80
     protocol: TCP
   - containerPort: 443
-    hostPosrt: 443
+    hostPort: 443
     protocol: TCP
 # 2. Worker node - 리소스 절약
 - role: worker
