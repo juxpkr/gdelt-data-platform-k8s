@@ -1,0 +1,18 @@
+# OS Files
+.DS_Store
+Thumbs.db
+*.log
+
+# IDE Settings
+.vscode/
+.idea/
+
+# Binaries
+kind
+kubectl
+*.exe
+
+# Secrets
+secrets.yaml
+.env
+*.pem
