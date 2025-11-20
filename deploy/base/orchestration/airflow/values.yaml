@@ -1,0 +1,193 @@
+# Airflow 이미지 버전
+images:
+  airflow:
+    repository: juxpkr/geoevent-airflow
+    tag: "2.2"
+    pullPolicy: IfNotPresent
+
+# 실행 방식
+executor: CeleryExecutor
+
+# 컴포넌트별 리소스 다이어트(16GB RAM)
+scheduler:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+  # DAGs 볼륨 마운트
+  extraVolumes:
+    - name: dags-data
+      hostPath:
+        path: /home/tajo/gdelt-data-platform-k8s/apps/airflow/dags
+        type: Directory
+    - name: plugins-data
+      hostPath:
+        path: /home/tajo/gdelt-data-platform-k8s/apps/airflow/plugins
+        type: Directory
+
+  extraVolumeMounts:
+    - name: dags-data
+      mountPath: /opt/airflow/dags
+      readOnly: true
+    - name: plugins-data
+      mountPath: /opt/airflow/plugins
+      readOnly: true
+
+webserver:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+  # DAGs 볼륨 마운트
+  extraVolumes:
+    - name: dags-data
+      hostPath:
+        path: /home/tajo/gdelt-data-platform-k8s/apps/airflow/dags
+        type: Directory
+    - name: plugins-data
+      hostPath:
+        path: /home/tajo/gdelt-data-platform-k8s/apps/airflow/plugins
+        type: Directory
+
+  extraVolumeMounts:
+    - name: dags-data
+      mountPath: /opt/airflow/dags
+      readOnly: true
+    - name: plugins-data
+      mountPath: /opt/airflow/plugins
+      readOnly: true
+
+  # Gunicorn 워커 수 줄이기 (4개 -> 2개)
+  # 리소스 절약 + 부팅 속도 향상
+  env:
+    - name: AIRFLOW__WEBSERVER__WORKERS
+      value: "2"
+    - name: AIRFLOW__WEBSERVER__WORKER_TIMEOUT
+      value: "180" 
+    - name: REDIS_HOST
+      value: "airflow-redis"
+    - name: REDIS_PORT
+      value: "6379"
+
+  # 시동 검사
+  startupProbe:
+    failureThreshold: 30     # 30번 시도
+    periodSeconds: 10         # 10초마다 (총 300초)
+    timeoutSeconds: 5
+  
+  # 생존 검사
+  livenessProbe:
+    initialDelaySeconds: 10
+    timeoutSeconds: 30
+    failureThreshold: 5
+    periodSeconds: 30
+
+  # 준비 검사
+  readinessProbe:
+    initialDelaySeconds: 10
+    timeoutSeconds: 30
+    failureThreshold: 5
+    periodSeconds: 30
+
+workers:
+  replicas: 1
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+
+  # DAGs 볼륨 마운트
+  extraVolumes:
+    - name: dags-data
+      hostPath:
+        path: /home/tajo/gdelt-data-platform-k8s/apps/airflow/dags
+        type: Directory
+    - name: plugins-data
+      hostPath:
+        path: /home/tajo/gdelt-data-platform-k8s/apps/airflow/plugins
+        type: Directory
+
+  extraVolumeMounts:
+    - name: dags-data
+      mountPath: /opt/airflow/dags
+      readOnly: true
+    - name: plugins-data
+      mountPath: /opt/airflow/plugins
+      readOnly: true
+
+  tolerations:
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Exists"
+      effect: "NoSchedule"
+
+# 안 쓰는 기능 끄기 - 메모리 확보
+triggerer:
+  enabled: false
+statsd:
+  enabled: false
+
+# Redis 다이어트
+redis:
+  enabled: true
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "100m"
+      memory: "128Mi"
+
+# 외부 DB 연결
+postgresql:
+  enabled: false  # 내장 DB 비활성화
+data:
+  metadataConnection:
+    user: postgres
+    pass: postgres
+    host: postgres-custom
+    port: 5432
+    db: airflow
+    protocol: postgresql
+
+# 동시성 제어
+config:
+  core:
+    parallelism: 2 # 전체에서 동시에 딱 2개 태스크만 실행
+    max_active_tasks_per_dag: 2 # DAG당 2개만
+    max_active_runs_per_dag: 1 # 배치가 밀려도 중첩 실행 안 됨
+    load_examples: 'False' # 예제 DAG 로딩 끔
+    catchup_by_default: 'False' # 과거 데이터 소급 실행 방지
+
+  celery:
+    worker_concurrency: 2  # 2개의 프로세스만 실행
+
+
+# 외부 접속 (Ingress)
+ingress:
+  web:
+    enabled: true
+    ingressClassName: "nginx"
+    hosts:
+      - name: ""
+
+# DAGs 폴더 설정 (HostPath 방식)
+dags:
+  persistence:
+    enabled: false # PVC 안 쓰고 직접 마운트
+  gitSync:
+    enabled: false
+
+# 볼륨 마운트는 각 컴포넌트(scheduler, webserver, workers)별로 설정됨

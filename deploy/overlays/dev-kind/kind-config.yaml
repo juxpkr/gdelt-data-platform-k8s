@@ -2,8 +2,9 @@
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
-# 1. Master node (Control Plane)
+# Control Plane node
 - role: control-plane
+  # Ingress를 위한 포트 매핑
   kubeadmConfigPatches:
   - |
     kind: InitConfiguration
@@ -17,5 +18,13 @@ nodes:
   - containerPort: 443
     hostPort: 443
     protocol: TCP
-# 2. Worker node - 리소스 절약
+  
+  extraMounts:
+  - hostPath: /home/tajo/gdelt-data-platform-k8s
+    containerPath: /home/tajo/gdelt-data-platform-k8s
+
+# Worker node - 리소스 절약
 - role: worker
+  extraMounts:
+  - hostPath: /home/tajo/gdelt-data-platform-k8s
+    containerPath: /home/tajo/gdelt-data-platform-k8s
