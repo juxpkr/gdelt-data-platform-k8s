@@ -16,3 +16,6 @@ kubectl
 secrets.yaml
 .env
 *.pem
+
+CLAUDE.md
+*.md
