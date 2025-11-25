@@ -13,16 +13,12 @@ from pyspark.sql.types import (
     IntegerType,
 )
 
-# 프로젝트 루트 경로 추가
-project_root = Path(__file__).resolve().parents[2]
+project_root = Path(__file__).resolve().parents[1]
 sys.path.append(str(project_root))
 
 from utils.spark_builder import get_spark_session
 from utils.redis_client import redis_client
 
-# ==============================================================================
-# 1. 설정 (Setup)
-# ==============================================================================
 # 로거 설정
 logger = logging.getLogger(__name__)
 
@@ -52,12 +48,7 @@ LIFECYCLE_SCHEMA = StructType(
     ]
 )
 
-
-# ==============================================================================
-# 2. 헬퍼 함수 (Helper Functions)
-# ==============================================================================
-
-
+# 헬퍼 함수
 def load_staging_table_safely(spark: SparkSession, path: str):
     """
     Staging 테이블을 안전하게 읽어오는 함수.
@@ -78,9 +69,8 @@ def load_staging_table_safely(spark: SparkSession, path: str):
         return spark.createDataFrame([], LIFECYCLE_SCHEMA)
 
 
-# ==============================================================================
-# 3. 메인 로직 (Main Logic)
-# ==============================================================================
+# 메인 로직
+
 def ensure_main_table_exists(spark: SparkSession, main_path: str):
     """Main lifecycle 테이블이 없으면 빈 테이블로 생성"""
     if not DeltaTable.isDeltaTable(spark, main_path):
@@ -100,7 +90,7 @@ def main():
     """
     Staging lifecycle 테이블들을 Main lifecycle 테이블로 통합하는 Spark 배치 잡
     """
-    spark_master = os.getenv("SPARK_MASTER_URL", "spark://spark-master:7077")
+    spark_master = os.getenv("SPARK_MASTER_URL", "local[*]")
     spark = get_spark_session("Lifecycle_Consolidator", spark_master)
 
     # Redis에 Spark Driver UI 정보 등록
@@ -114,7 +104,7 @@ def main():
     source_df = None
 
     try:
-        # 0. Main 테이블 먼저 생성/확인 (가장 중요!)
+        # Main 테이블 먼저 생성/확인
         ensure_main_table_exists(spark, main_path)
         events_df = load_staging_table_safely(spark, event_staging_path)
         gkg_df = load_staging_table_safely(spark, gkg_staging_path)
@@ -129,7 +119,7 @@ def main():
 
         logger.info(f"Found {record_count} total records to merge from staging tables.")
 
-        # Main 테이블에 MERGE (이제 테이블이 존재한다고 확신)
+        # Main 테이블에 MERGE
         main_delta_table = DeltaTable.forPath(spark, main_path)
         main_delta_table.alias("target").merge(
             source=source_df.alias("source"),
@@ -159,9 +149,5 @@ def main():
         logger.info("Lifecycle Consolidation Spark Job finished.")
         spark.stop()
 
-
-# ==============================================================================
-# 4. 실행 (Execution)
-# ==============================================================================
 if __name__ == "__main__":
     main()
