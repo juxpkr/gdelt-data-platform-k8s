@@ -1,0 +1,35 @@
+# Bitnami MinIO Chart v14.7.14 Config
+# Image: bitnami/minio:2024.7.16
+
+# 이미지 버전
+image:
+  registry: public.ecr.aws
+  repository: bitnami/minio
+
+  tag: "2024.11.7-debian-12-r0"
+  pullPolicy: IfNotPresent
+
+# 스토리지 연결
+persistence:
+  enabled: true
+  existingClaim: minio-hdd-pvc
+
+# 리소스 제한
+resources:
+  limits:
+    memory: 512Mi
+    cpu: 200m
+  requests:
+    memory: 256Mi
+    cpu: 100m
+
+# 접속 정보
+auth:
+  rootUser: minioadmin
+  rootPassword: minioadmin
+
+# 외부 접속 (Ingress)
+ingress:
+  enabled: true
+  ingressClassName: "nginx"
+  hostname: minio.local

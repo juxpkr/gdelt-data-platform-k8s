@@ -2,8 +2,56 @@
 images:
   airflow:
     repository: juxpkr/geoevent-airflow
-    tag: "2.2"
+    tag: "2.2-delta"
     pullPolicy: IfNotPresent
+
+# 전체 컴포넌트 공통 환경변수
+env:
+  # Kafka 설정
+  - name: KAFKA_BOOTSTRAP_SERVERS
+    value: "kafka-headless.airflow.svc.cluster.local:9092"
+  - name: KAFKA_TOPIC_GDELT_EVENTS
+    value: "gdelt_events_bronze"
+  - name: KAFKA_TOPIC_GDELT_MENTIONS
+    value: "gdelt_mentions_bronze"
+  - name: KAFKA_TOPIC_GDELT_GKG
+    value: "gdelt_gkg_bronze"
+
+  # MinIO 설정
+  - name: MINIO_ENDPOINT
+    value: "http://minio.airflow.svc.cluster.local:9000"
+  - name: MINIO_ROOT_USER
+    value: "minioadmin"
+  - name: MINIO_ROOT_PASSWORD
+    value: "minioadmin"
+
+  # Redis 설정
+  - name: REDIS_HOST
+    value: "airflow-redis"
+  - name: REDIS_PORT
+    value: "6379"
+
+  # PostgreSQL 설정 (metastore)
+  - name: POSTGRES_HOST
+    value: "postgres-custom.airflow.svc.cluster.local"
+  - name: POSTGRES_PORT
+    value: "5432"
+  - name: POSTGRES_USER
+    value: "postgres"
+  - name: POSTGRES_PASSWORD
+    value: "postgres"
+  - name: POSTGRES_DB
+    value: "metastore_db"
+
+  # Spark Connection
+  - name: AIRFLOW_CONN_SPARK_DEFAULT
+    value: "spark://local"
+extraEnv: |
+  - name: REDIS_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: airflow-redis-password
+        key: password
 
 # 실행 방식
 executor: CeleryExecutor
@@ -29,6 +77,10 @@ scheduler:
       hostPath:
         path: /home/tajo/gdelt-data-platform-k8s/apps/airflow/plugins
         type: Directory
+    - name: jobs-data
+      hostPath:
+        path: /home/tajo/gdelt-data-platform-k8s/apps/spark-jobs
+        type: Directory
 
   extraVolumeMounts:
     - name: dags-data
@@ -36,6 +88,9 @@ scheduler:
       readOnly: true
     - name: plugins-data
       mountPath: /opt/airflow/plugins
+      readOnly: true
+    - name: jobs-data
+      mountPath: /opt/airflow/spark-jobs
       readOnly: true
 
 webserver:
@@ -58,6 +113,10 @@ webserver:
       hostPath:
         path: /home/tajo/gdelt-data-platform-k8s/apps/airflow/plugins
         type: Directory
+    - name: jobs-data
+      hostPath:
+        path: /home/tajo/gdelt-data-platform-k8s/apps/spark-jobs
+        type: Directory
 
   extraVolumeMounts:
     - name: dags-data
@@ -66,6 +125,9 @@ webserver:
     - name: plugins-data
       mountPath: /opt/airflow/plugins
       readOnly: true
+    - name: jobs-data
+      mountPath: /opt/airflow/spark-jobs
+      readOnly: true
 
   # Gunicorn 워커 수 줄이기 (4개 -> 2개)
   # 리소스 절약 + 부팅 속도 향상
@@ -73,11 +135,7 @@ webserver:
     - name: AIRFLOW__WEBSERVER__WORKERS
       value: "2"
     - name: AIRFLOW__WEBSERVER__WORKER_TIMEOUT
-      value: "180" 
-    - name: REDIS_HOST
-      value: "airflow-redis"
-    - name: REDIS_PORT
-      value: "6379"
+      value: "180"
 
   # 시동 검사
   startupProbe:
@@ -107,7 +165,7 @@ workers:
       memory: "512Mi"
     limits:
       cpu: "1000m"
-      memory: "2Gi"
+      memory: "6Gi"
 
   # DAGs 볼륨 마운트
   extraVolumes:
@@ -119,6 +177,10 @@ workers:
       hostPath:
         path: /home/tajo/gdelt-data-platform-k8s/apps/airflow/plugins
         type: Directory
+    - name: jobs-data
+      hostPath:
+        path: /home/tajo/gdelt-data-platform-k8s/apps/spark-jobs
+        type: Directory
 
   extraVolumeMounts:
     - name: dags-data
@@ -126,6 +188,9 @@ workers:
       readOnly: true
     - name: plugins-data
       mountPath: /opt/airflow/plugins
+      readOnly: true
+    - name: jobs-data
+      mountPath: /opt/airflow/spark-jobs
       readOnly: true
 
   tolerations:
@@ -189,5 +254,3 @@ dags:
     enabled: false # PVC 안 쓰고 직접 마운트
   gitSync:
     enabled: false
-
-# 볼륨 마운트는 각 컴포넌트(scheduler, webserver, workers)별로 설정됨

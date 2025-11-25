@@ -23,8 +23,14 @@ nodes:
   - hostPath: /home/tajo/gdelt-data-platform-k8s
     containerPath: /home/tajo/gdelt-data-platform-k8s
 
+  - hostPath: /mnt/data-hdd
+    containerPath: /data-hdd
+
 # Worker node - 리소스 절약
 - role: worker
   extraMounts:
   - hostPath: /home/tajo/gdelt-data-platform-k8s
     containerPath: /home/tajo/gdelt-data-platform-k8s
+
+  - hostPath: /mnt/data-hdd
+    containerPath: /data-hdd

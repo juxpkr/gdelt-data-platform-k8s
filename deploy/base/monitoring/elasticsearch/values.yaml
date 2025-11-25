@@ -1,0 +1,32 @@
+# Elastic Official Chart (7.17.3)
+# 16GB Server Survival Mode
+
+# 클러스터 구성 (싱글 노드)
+replicas: 1
+minimumMasterNodes: 1
+
+# 리소스 설정
+resources:
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "1000m"
+    memory: "2Gi"
+
+# JVM 힙 메모리 설정 (전체 메모리의 50%)
+esJavaOpts: "-Xms1g -Xmx1g"
+
+# 스토리지 설정
+volumeClaimTemplate:
+  accessModes: [ "ReadWriteOnce" ]
+  storageClassName: "standard"
+  resources:
+    requests:
+      storage: 30Gi
+
+# 다른 잡다한 기능 끄기
+persistence:
+  enabled: true
+antiAffinity: "soft"
+
