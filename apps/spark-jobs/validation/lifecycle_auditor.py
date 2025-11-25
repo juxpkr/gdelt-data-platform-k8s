@@ -14,7 +14,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, lit, desc, year, month, dayofmonth, hour
 
 # 프로젝트 루트 경로 추가
-project_root = Path(__file__).resolve().parents[2]
+project_root = Path(__file__).resolve().parents[1]
 import sys
 
 sys.path.append(str(project_root))
@@ -453,7 +453,7 @@ class LifecycleAuditor:
 
 def run_lifecycle_audit(hours_back: int = 24):
     """메인 실행 함수"""
-    spark_master = os.getenv("SPARK_MASTER_URL", "spark://spark-master:7077")
+    spark_master = os.getenv("SPARK_MASTER_URL", "local[*]")
     spark = get_spark_session("Lifecycle_Auditor", spark_master)
 
     try:

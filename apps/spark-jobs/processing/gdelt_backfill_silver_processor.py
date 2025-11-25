@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 
 # 모듈 임포트
-sys.path.append("/opt/airflow")
+sys.path.append("/opt/airflow/spark-jobs")
 from utils.spark_builder import get_spark_session
 from utils.redis_client import redis_client
 from utils.schemas.gdelt_schemas import GDELTSchemas
@@ -163,7 +163,7 @@ def main():
     logger.info("Starting GDELT 3-Way Silver Processor (Refactored)...")
 
     spark = get_spark_session(
-        "GDELT 3Way Silver Processor", "spark://spark-master:7077"
+        "GDELT 3Way Silver Processor"
     )
     redis_client.register_driver_ui(spark, "GDELT 3Way Silver Processor")
 

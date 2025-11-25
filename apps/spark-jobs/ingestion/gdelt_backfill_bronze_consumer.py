@@ -14,7 +14,7 @@ from pathlib import Path
 import logging
 
 # 프로젝트 루트를 Python path에 추가
-project_root = os.getenv("PROJECT_ROOT", str(Path(__file__).resolve().parents[2]))
+project_root = os.getenv("PROJECT_ROOT", str(Path(__file__).resolve().parents[1]))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 

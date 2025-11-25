@@ -323,8 +323,7 @@ def main():
     logger.info("Starting GDELT Gold to PostgreSQL Migration Pipeline...")
 
     # Spark 세션 생성
-    spark_master = os.getenv("SPARK_MASTER_URL", "spark://spark-master:7077")
-    spark = get_spark_session("GDELT_Gold_To_PostgreSQL_Migration", spark_master)
+    spark = get_spark_session("GDELT_Gold_To_PostgreSQL_Migration")
 
     # Redis에 Spark Driver UI 정보 등록
     redis_client.register_driver_ui(spark, "GDELT Gold to PostgreSQL Migration")

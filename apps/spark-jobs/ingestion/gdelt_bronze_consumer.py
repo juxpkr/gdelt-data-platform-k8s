@@ -14,7 +14,8 @@ from pathlib import Path
 import logging
 
 # 프로젝트 루트를 Python path에 추가
-project_root = os.getenv("PROJECT_ROOT", str(Path(__file__).resolve().parents[2]))
+# K8s: /opt/airflow/spark-jobs/ingestion/gdelt_bronze_consumer.py -> parents[1] = /opt/airflow/spark-jobs
+project_root = os.getenv("PROJECT_ROOT", str(Path(__file__).resolve().parents[1]))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -171,6 +172,7 @@ def setup_streaming_query(spark: SparkSession, data_type: str, logger):
                 )
 
                 # events와 gkg만 lifecycle 추적
+                # Lifecycle tracking (events, gkg만)
                 if data_type in ["events", "gkg"]:
                     try:
                         df_for_lifecycle = df_validated.withColumnRenamed(
@@ -188,6 +190,7 @@ def setup_streaming_query(spark: SparkSession, data_type: str, logger):
                         logger.info(
                             f"Successfully tracked {tracked_count} events in lifecycle for batch {epoch_id}."
                         )
+
                     except Exception as e:
                         logger.error(
                             f"LIFECYCLE TRACKING FAILED for batch {epoch_id}: {e}"
@@ -197,6 +200,28 @@ def setup_streaming_query(spark: SparkSession, data_type: str, logger):
                     logger.info(
                         f"Skipping lifecycle tracking for '{data_type}' to prevent race conditions."
                     )
+
+                # Elasticsearch 저장
+                try:
+                    es_index_name = f"gdelt_{data_type}"
+
+                    logger.info(f"Indexing batch {epoch_id} to Elasticsearch ({es_index_name})...")
+
+                    df_validated.write \
+                        .format("org.elasticsearch.spark.sql") \
+                        .option("es.nodes", "elasticsearch-master.monitoring.svc.cluster.local") \
+                        .option("es.port", "9200") \
+                        .option("es.resource", f"{es_index_name}/_doc") \
+                        .option("es.nodes.wan.only", "true") \
+                        .option("es.index.auto.create", "true") \
+                        .option("es.write.operation", "index") \
+                        .mode("append") \
+                        .save()
+
+                    logger.info(f"Successfully indexed batch {epoch_id} to Elasticsearch.")
+                except Exception as e:
+                    logger.error(f"ES INDEXING FAILED for {data_type} batch {epoch_id}: {e}")
+                    # ES 실패해도 전체 프로세스는 계속 (MinIO 저장은 이미 완료)
 
         except Exception as e:
             logger.error(
