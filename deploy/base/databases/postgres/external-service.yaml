@@ -28,9 +28,17 @@ spec:
         volumeMounts:
         - name: postgres-storage
           mountPath: /var/lib/postgresql/data
+        # 초기화 스크립트 볼륨 마운트
+        - name: init-scripts-volume
+          mountPath: /docker-entrypoint-initdb.d # Postgres가 자동으로 실행하는 경로
+      
+      # 스크립트 볼륨 정의
       volumes:
       - name: postgres-storage
-        emptyDir: {} 
+        emptyDir: {}
+      - name: init-scripts-volume
+        configMap:
+          name: postgres-init-scripts
 ---
 apiVersion: v1
 kind: Service
