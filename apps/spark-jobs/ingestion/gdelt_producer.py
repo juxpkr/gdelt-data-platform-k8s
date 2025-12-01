@@ -17,7 +17,7 @@ from botocore.exceptions import ClientError
 from confluent_kafka import Producer
 from dotenv import load_dotenv
 from utils.kafka_producer import get_kafka_producer
-from validation.lifecycle_metrics_exporter import export_producer_collection_metrics
+# from validation.lifecycle_metrics_exporter import export_producer_collection_metrics
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Tuple
 
@@ -409,13 +409,6 @@ def main():
             grand_total += record_count
 
         logger.info(f"GRAND TOTAL: {grand_total:,} records collected!")
-
-        # Producer 수집 통계를 Prometheus로 전송
-        try:
-            export_producer_collection_metrics(total_stats)
-            logger.info("Collection metrics exported to Prometheus successfully")
-        except Exception as e:
-            logger.warning(f"Failed to export collection metrics: {e}")
 
     except Exception as e:
         logger.error(f"An error occurred during producer execution: {e}", exc_info=True)
