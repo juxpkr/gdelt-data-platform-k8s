@@ -28,12 +28,15 @@ def get_spark_session(app_name: str, master: str = None) -> SparkSession:
         .config("spark.hadoop.fs.s3a.connection.maximum", "100")
         .config("spark.hadoop.fs.s3a.connection.timeout", "200000")
         .config("spark.hadoop.fs.s3a.multipart.size", "104857600")  # 100MB
+        .config("spark.hadoop.fs.s3a.directory.marker.retention", "keep")
+        .config("spark.hadoop.fs.s3a.committer.name", "directory") 
+        .config("spark.sql.sources.commitProtocolClass", "org.apache.spark.sql.execution.datasources.SQLHadoopMapReduceCommitProtocol")
 
         # Delta Lake 설정
         .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
         .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
 
-        # --- [3] Hive Metastore (Embedded Postgres) ---
+        # Hive Metastore (Embedded Postgres)
         .config("spark.sql.catalogImplementation", "hive")
         .config("spark.hadoop.hive.metastore.uris", "") # 임베디드 모드 강제
         .config("spark.hadoop.javax.jdo.option.ConnectionURL", "jdbc:postgresql://postgres-custom:5432/metastore_db")
