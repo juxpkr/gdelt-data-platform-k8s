@@ -1,0 +1,61 @@
+# K8s 환경용 dbt profiles
+analytics_dbt:
+  target: prod
+  outputs:
+    # K8s Airflow Worker 환경
+    prod:
+      type: spark
+      method: session  # Thrift Server 없이 직접 실행
+      host: localhost
+      schema: gold
+      threads: 1
+
+      # Spark Session 설정
+      spark_config:
+        # Local mode (Worker 내부 실행)
+        spark.master: local[1]
+
+        # JAR 파일 직접 지정 (Delta + Hadoop AWS)
+        spark.jars: /opt/spark/jars/delta-core_2.12-2.4.0.jar,/opt/spark/jars/delta-storage-2.4.0.jar,/opt/spark/jars/hadoop-aws-3.3.4.jar,/opt/spark/jars/aws-java-sdk-bundle-1.12.262.jar
+
+        # Hive Metastore (PostgreSQL - Spark Job들과 공유)
+        spark.sql.catalogImplementation: hive
+        spark.sql.warehouse.dir: /tmp/spark-warehouse
+        spark.hadoop.javax.jdo.option.ConnectionURL: jdbc:postgresql://postgres-custom.airflow.svc.cluster.local:5432/metastore_db
+        spark.hadoop.javax.jdo.option.ConnectionDriverName: org.postgresql.Driver
+        spark.hadoop.javax.jdo.option.ConnectionUserName: postgres
+        spark.hadoop.javax.jdo.option.ConnectionPassword: postgres
+
+        # DataNucleus 스키마 자동 생성 (PostgreSQL Metastore)
+        spark.hadoop.datanucleus.schema.autoCreateAll: "true"
+        spark.hadoop.datanucleus.schema.autoCreateTables: "true"
+        spark.hadoop.datanucleus.schema.autoCreateColumns: "true"
+        spark.hadoop.hive.metastore.schema.verification: "false"
+
+        # MinIO (S3)
+        spark.hadoop.fs.s3a.endpoint: http://minio.airflow.svc.cluster.local:9000
+        spark.hadoop.fs.s3a.access.key: minioadmin
+        spark.hadoop.fs.s3a.secret.key: minioadmin
+        spark.hadoop.fs.s3a.path.style.access: "true"
+        spark.hadoop.fs.s3a.impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+        spark.hadoop.fs.s3a.connection.ssl.enabled: "false"
+
+        # Delta Lake
+        spark.sql.extensions: io.delta.sql.DeltaSparkSessionExtension
+        spark.sql.catalog.spark_catalog: org.apache.spark.sql.delta.catalog.DeltaCatalog
+
+        # 16GB 환경 최적화
+        spark.driver.memory: 1g
+        spark.driver.memoryOverhead: "512m"
+        spark.sql.shuffle.partitions: "1"
+        spark.sql.adaptive.enabled: "true"
+
+
+    # 로컬 테스트용
+    dev:
+      type: spark
+      method: session
+      schema: gold_dev
+      spark_config:
+        spark.master: local[2]
+      threads: 2
