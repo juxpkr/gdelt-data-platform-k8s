@@ -17,20 +17,29 @@ REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
 SPARK_JOBS_DIR = "/opt/airflow/spark-jobs"
 SPARK_IMAGE = "juxpkr/geoevent-spark-base:2.2"
 
-# 16GB 리소스 설정
+# 16GB 리소스 최적화 설정
 SPARK_CONF_16GB = {
-    "spark.driver.memory": "1g",
-    "spark.executor.memory": "1g",
+    # Driver는 가볍게 지시만 함
+    "spark.driver.memory": "2g",
+
+    # Executor를 쪼개지 말고 하나로 합쳐서 오버헤드 제거
     "spark.executor.instances": "1",
-    "spark.sql.shuffle.partitions": "10", # 파티션 줄여서 메모리 아낌
+    "spark.executor.cores": "4",
+    "spark.executor.memory": "4g",
+
+    # 셔플 파티션 최적화 (코어 수에 맞춤)
+    "spark.sql.shuffle.partitions": "4",
     "spark.default.parallelism": "4",
     "spark.sql.adaptive.enabled": "true",
+
+    # Delta Lake MERGE 속도 향상
+    "spark.databricks.delta.optimizeWrite.enabled": "true"
 }
 
 with DAG(
     dag_id="gdelt_bronze_to_silver",
-    start_date=pendulum.datetime(2025, 11, 20, tz="Asia/Seoul"),
-    schedule="0,15,30,45 * * * *",  # 정각 기준 15분 단위 실행
+    start_date=pendulum.now().subtract(days=1),  
+    schedule="0,15,30,45 * * * *",  
     catchup=False,
     max_active_runs=1,
     doc_md="""
@@ -67,7 +76,7 @@ with DAG(
         conn_id="spark_default",
         application=f"{SPARK_JOBS_DIR}/ingestion/gdelt_bronze_consumer.py",
         conf=SPARK_CONF_16GB,
-        jars=f"{SPARK_JOBS_DIR}/jars/delta-core_2.12-2.4.0.jar,{SPARK_JOBS_DIR}/jars/delta-storage-2.4.0.jar,{SPARK_JOBS_DIR}/jars/elasticsearch-spark-30_2.12-7.17.3.jar",
+        jars=f"{SPARK_JOBS_DIR}/jars/delta-core_2.12-2.4.0.jar,{SPARK_JOBS_DIR}/jars/delta-storage-2.4.0.jar",
         env_vars={
             "REDIS_HOST": "airflow-redis",
             "REDIS_PORT": "6379",
@@ -76,55 +85,40 @@ with DAG(
         },
     )
 
-    ## Task 3: Lifecycle Consolidator
-    #consolidate_lifecycle = SparkSubmitOperator(
-    #    task_id="consolidate_lifecycle",
-    #    conn_id="spark_default",
-    #    packages="io.delta:delta-core_2.12:2.4.0",
-    #    application=f"{SPARK_JOBS_DIR}/audit/lifecycle_consolidator.py",
-    #    conf=SPARK_CONF_16GB,
-    #    doc_md="""
-    #    Lifecycle Consolidator
-    #    - Staging 테이블 (lifecycle_staging_event, lifecycle_staging_gkg) 데이터를 Main lifecycle 테이블로 통합
-    #    - WAITING 상태 이벤트를 Silver Processor가 읽을 수 있도록 준비
-    #    - Staging 테이블 정리
-    #    """,
-    #)
+    # Task 3: Silver Processing
+    silver_processor = SparkSubmitOperator(
+        task_id="silver_processor",
+        conn_id="spark_default",
+        application=f"{SPARK_JOBS_DIR}/processing/gdelt_silver_processor.py",
+        conf=SPARK_CONF_16GB,
+        jars=f"{SPARK_JOBS_DIR}/jars/delta-core_2.12-2.4.0.jar,{SPARK_JOBS_DIR}/jars/delta-storage-2.4.0.jar",
+        env_vars={
+            "REDIS_HOST": "airflow-redis",
+            "REDIS_PORT": "6379",
+            "REDIS_PASSWORD": REDIS_PASSWORD,
+            "PYTHONPATH": SPARK_JOBS_DIR,
+        },
+        # Airflow의 작업 시간 구간을 Spark 코드의 인자로 전달
+        application_args=["{{ data_interval_start }}", "{{ data_interval_end }}"],
+        doc_md="""
+        Silver Layer Processing
+        - Bronze Layer → Silver Layer 데이터 변환
+        - 3-Way 조인 (Events + Mentions + GKG)
+        - Delta Lake 파티션 저장 (default.gdelt_events, default.gdelt_events_detailed)
+        """,
+    )
 
-    ## Task 4: Silver Processing (주석처리 - ES 연동 후 최적화)
-    #silver_processor = SparkSubmitOperator(
-    #    task_id="silver_processor",
-    #    conn_id="spark_default",
-    #    application=f"{SPARK_JOBS_DIR}/processing/gdelt_silver_processor.py",
-    #    conf=SPARK_CONF_16GB,
-    #    packages="io.delta:delta-core_2.12:2.4.0",
-    #    env_vars={
-    #        "REDIS_HOST": "airflow-redis",
-    #        "REDIS_PORT": "6379",
-    #        "PYTHONPATH": SPARK_JOBS_DIR,
-    #    },
-    #    # Airflow의 작업 시간 구간을 Spark 코드의 인자로 전달
-    #    application_args=["{{ data_interval_start }}", "{{ data_interval_end }}"],
-    #    doc_md="""
-    #    Silver Layer Processing
-    #    - Bronze Layer → Silver Layer 데이터 변환
-    #    - 3-Way 조인 (Events + Mentions + GKG)
-    #    - Delta Lake 파티션 저장 (default.gdelt_events, default.gdelt_events_detailed)
-    #    """,
-    #)
+    # Silver 작업이 성공하면, dbt DAG을 호출
+    trigger_dbt = TriggerDagRunOperator(
+        task_id="trigger_dbt_gold_pipeline",
+        trigger_dag_id="gdelt_silver_to_gold",
+        wait_for_completion=False,
+    )
 
-    ## Silver 작업이 성공하면, dbt DAG을 호출 (주석처리)
-    #trigger_dbt = TriggerDagRunOperator(
-    #    task_id="trigger_dbt_gold_pipeline",
-    #    trigger_dag_id="gdelt_silver_to_gold",
-    #    wait_for_completion=False,
-    #)
-
-    # Task 의존성 정의: Producer → Bronze (Silver/dbt 주석처리)
+    # Task 의존성 정의: Producer → Bronze → Silver → dbt Gold
     (
         gdelt_producer
         >> bronze_consumer
-        #>> consolidate_lifecycle
-        #>> silver_processor
-        #>> trigger_dbt
+        >> silver_processor
+        >> trigger_dbt
     )
