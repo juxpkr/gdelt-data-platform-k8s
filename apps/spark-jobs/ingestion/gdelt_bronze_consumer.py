@@ -33,7 +33,7 @@ from pyspark.sql.types import (
 from utils.spark_builder import get_spark_session
 from utils.redis_client import redis_client
 from processing.partitioning.gdelt_partition_writer import write_to_delta_lake
-from audit.lifecycle_tracker import EventLifecycleTracker
+# from audit.lifecycle_tracker import EventLifecycleTracker 
 
 
 # --- 로깅 설정 ---
@@ -81,30 +81,18 @@ DATA_TYPE_CONFIG = {
 
 def setup_streaming_query(spark: SparkSession, data_type: str, logger):
     """
-    지정된 데이터 타입에 대한 스트리밍 쿼리를 '설정'하고 '시작'만 시킨다.
+    지정된 데이터 타입에 대한 스트리밍 쿼리를 설정하고 시작만 시킨다.
     (awaitTermination은 호출하지 않음)
     """
     # 변수 설정
     kafka_topic = KAFKA_TOPICS[data_type]
     minio_path = MINIO_PATHS[data_type]
     checkpoint_path = (
-        f"s3a://warehouse/checkpoints/bronze/{data_type}"  # 영구 저장소 사용
+        f"s3a://warehouse/checkpoints/bronze/{data_type}" 
     )
     kafka_bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 
-    # Lifecycle tracker 초기화
-    lifecycle_tracker = EventLifecycleTracker(spark)
-
-    # MERGE를 시도하기 전에, 테이블이 존재하는지 먼저 확인하고, 없으면 생성
-    table_path = "s3a://warehouse/audit/lifecycle"
-    try:
-        spark.catalog.tableExists(f"delta.`{table_path}`")
-        spark.read.format("delta").load(table_path).limit(1).collect()
-    except:
-        print("Lifecycle table not found. Initializing...")
-        lifecycle_tracker.initialize_table()
-
-    # 1. readStream으로 Kafka 데이터 읽기
+    # readStream으로 Kafka 데이터 읽기
     kafka_df = (
         spark.readStream.format("kafka")
         .option("kafka.bootstrap.servers", kafka_bootstrap_servers)
@@ -128,12 +116,8 @@ def setup_streaming_query(spark: SparkSession, data_type: str, logger):
                 logger.info(f"Batch {epoch_id} is empty. Skipping.")
                 return
 
-            # 후속 작업을 위해 캐싱
-            df.cache()
-            record_count = df.count()  # 여기서 실제 값으로 덮어 씌워짐
-
             logger.info(
-                f"Processing {record_count} records for '{data_type}' in batch {epoch_id}."
+                f"Processing batch {epoch_id} for '{data_type}'."
             )
 
             # Kafka 메시지 파싱
@@ -156,72 +140,16 @@ def setup_streaming_query(spark: SparkSession, data_type: str, logger):
                 F.col(merge_key_name).isNotNull() & (F.col(merge_key_name) != "")
             )
 
-            validated_count = df_validated.count()
-            dropped_count = record_count - validated_count
-            if dropped_count > 0:
-                logger.warn(f"Dropped {dropped_count} records due to NULL/EMPTY key.")
-
-            if validated_count > 0:
-                # Bronze 저장
+            if True:
+                # Bronze 저장 (Hive 등록 비활성화 - 병렬 처리 충돌 방지)
                 write_to_delta_lake(
                     df=df_validated,
                     delta_path=minio_path,
-                    table_name=f"Bronze {data_type}",
+                    table_name=f"bronze_{data_type}",
                     partition_col="processed_at",
                     merge_key=merge_key_name,
+                    register_hive=False,
                 )
-
-                # events와 gkg만 lifecycle 추적
-                # Lifecycle tracking (events, gkg만)
-                if data_type in ["events", "gkg"]:
-                    try:
-                        df_for_lifecycle = df_validated.withColumnRenamed(
-                            merge_key_name, "global_event_id"
-                        )
-                        event_type_for_tracker = (
-                            "EVENT" if data_type == "events" else "GKG"
-                        )
-
-                        tracked_count = lifecycle_tracker.track_bronze_arrival(
-                            events_df=df_for_lifecycle,
-                            batch_id=f"{data_type}_batch_{epoch_id}",
-                            event_type=event_type_for_tracker,
-                        )
-                        logger.info(
-                            f"Successfully tracked {tracked_count} events in lifecycle for batch {epoch_id}."
-                        )
-
-                    except Exception as e:
-                        logger.error(
-                            f"LIFECYCLE TRACKING FAILED for batch {epoch_id}: {e}"
-                        )
-                        raise
-                else:
-                    logger.info(
-                        f"Skipping lifecycle tracking for '{data_type}' to prevent race conditions."
-                    )
-
-                # Elasticsearch 저장
-                try:
-                    es_index_name = f"gdelt_{data_type}"
-
-                    logger.info(f"Indexing batch {epoch_id} to Elasticsearch ({es_index_name})...")
-
-                    df_validated.write \
-                        .format("org.elasticsearch.spark.sql") \
-                        .option("es.nodes", "elasticsearch-master.monitoring.svc.cluster.local") \
-                        .option("es.port", "9200") \
-                        .option("es.resource", f"{es_index_name}/_doc") \
-                        .option("es.nodes.wan.only", "true") \
-                        .option("es.index.auto.create", "true") \
-                        .option("es.write.operation", "index") \
-                        .mode("append") \
-                        .save()
-
-                    logger.info(f"Successfully indexed batch {epoch_id} to Elasticsearch.")
-                except Exception as e:
-                    logger.error(f"ES INDEXING FAILED for {data_type} batch {epoch_id}: {e}")
-                    # ES 실패해도 전체 프로세스는 계속 (MinIO 저장은 이미 완료)
 
         except Exception as e:
             logger.error(
@@ -230,11 +158,8 @@ def setup_streaming_query(spark: SparkSession, data_type: str, logger):
             raise e
 
         finally:
-            # 캐시 해제
-            df.unpersist()
-            # 이 배치가 몇 개의 레코드를 처리했는지 함께 로깅
             logger.info(
-                f"--- Finished Batch {epoch_id} for {data_type}, Processed {record_count} records ---"
+                f"--- Finished Batch {epoch_id} for {data_type} ---"
             )
 
     # writeStream 실행
