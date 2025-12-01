@@ -18,3 +18,5 @@ secrets.yaml
 *.pem
 
 *.md
+
+venv/
