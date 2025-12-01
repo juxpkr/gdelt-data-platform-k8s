@@ -2,7 +2,7 @@
 images:
   airflow:
     repository: juxpkr/geoevent-airflow
-    tag: "2.2-delta"
+    tag: "2.4-delta-dbt-llm"
     pullPolicy: IfNotPresent
 
 # 전체 컴포넌트 공통 환경변수
@@ -46,6 +46,10 @@ env:
   # Spark Connection
   - name: AIRFLOW_CONN_SPARK_DEFAULT
     value: "spark://local"
+
+  # Gemini API 설정 
+  - name: GOOGLE_API_KEY
+    value: "AIzaSyDvx3aQKYJF0997o8vL6Q2GxQ4v7uL87Qw" 
 extraEnv: |
   - name: REDIS_PASSWORD
     valueFrom:
@@ -81,6 +85,10 @@ scheduler:
       hostPath:
         path: /home/tajo/gdelt-data-platform-k8s/apps/spark-jobs
         type: Directory
+    - name: dbt-data
+      hostPath:
+        path: /home/tajo/gdelt-data-platform-k8s/apps/dbt
+        type: Directory
 
   extraVolumeMounts:
     - name: dags-data
@@ -92,6 +100,9 @@ scheduler:
     - name: jobs-data
       mountPath: /opt/airflow/spark-jobs
       readOnly: true
+    - name: dbt-data
+      mountPath: /opt/airflow/dbt
+      readOnly: true
 
 webserver:
   replicas: 1
@@ -101,7 +112,7 @@ webserver:
       memory: "512Mi"
     limits:
       cpu: "500m"
-      memory: "1Gi"
+      memory: "2Gi"
 
   # DAGs 볼륨 마운트
   extraVolumes:
@@ -117,6 +128,10 @@ webserver:
       hostPath:
         path: /home/tajo/gdelt-data-platform-k8s/apps/spark-jobs
         type: Directory
+    - name: dbt-data
+      hostPath:
+        path: /home/tajo/gdelt-data-platform-k8s/apps/dbt
+        type: Directory
 
   extraVolumeMounts:
     - name: dags-data
@@ -127,6 +142,9 @@ webserver:
       readOnly: true
     - name: jobs-data
       mountPath: /opt/airflow/spark-jobs
+      readOnly: true
+    - name: dbt-data
+      mountPath: /opt/airflow/dbt
       readOnly: true
 
   # Gunicorn 워커 수 줄이기 (4개 -> 2개)
@@ -181,6 +199,10 @@ workers:
       hostPath:
         path: /home/tajo/gdelt-data-platform-k8s/apps/spark-jobs
         type: Directory
+    - name: dbt-data
+      hostPath:
+        path: /home/tajo/gdelt-data-platform-k8s/apps/dbt
+        type: Directory
 
   extraVolumeMounts:
     - name: dags-data
@@ -191,6 +213,9 @@ workers:
       readOnly: true
     - name: jobs-data
       mountPath: /opt/airflow/spark-jobs
+      readOnly: true
+    - name: dbt-data
+      mountPath: /opt/airflow/dbt
       readOnly: true
 
   tolerations:
