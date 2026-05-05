@@ -49,7 +49,7 @@ env:
 
   # Gemini API 설정 
   - name: GOOGLE_API_KEY
-    value: "AIzaSyDvx3aQKYJF0997o8vL6Q2GxQ4v7uL87Qw" 
+    value: "GOOGLE_API_KEY" 
 extraEnv: |
   - name: REDIS_PASSWORD
     valueFrom:
