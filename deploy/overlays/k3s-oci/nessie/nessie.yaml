@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nessie-pvc
+  namespace: gdelt
+spec:
+  storageClassName: local-path
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nessie
+  namespace: gdelt
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: nessie
+  template:
+    metadata:
+      labels:
+        app: nessie
+    spec:
+      containers:
+        - name: nessie
+          image: ghcr.io/projectnessie/nessie:0.107.5-java
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NESSIE_VERSION_STORE_TYPE
+              value: ROCKSDB
+
+            - name: NESSIE_VERSION_STORE_PERSIST_ROCKS_DATABASE_PATH
+              value: /var/lib/nessie/data
+
+            - name: QUARKUS_HTTP_PORT
+              value: "19120"
+
+            # Nessie Iceberg REST Catalog + MinIO 설정
+            - name: JAVA_OPTS_APPEND
+              value: >-
+                -Dnessie.catalog.default-warehouse=warehouse
+                -Dnessie.catalog.warehouses.warehouse.location=s3://warehouse/
+                -Dnessie.catalog.service.s3.default-options.endpoint=http://minio.gdelt.svc.cluster.local:9000
+                -Dnessie.catalog.service.s3.default-options.external-endpoint=http://minio.gdelt.svc.cluster.local:9000
+                -Dnessie.catalog.service.s3.default-options.path-style-access=true
+                -Dnessie.catalog.service.s3.default-options.region=us-east-1
+                -Dnessie.catalog.service.s3.default-options.auth-type=STATIC
+                -Dnessie.catalog.service.s3.default-options.access-key=urn:nessie-secret:quarkus:minio-creds
+                -Dminio-creds.name=minioadmin
+                -Dminio-creds.secret=minioadmin
+
+          ports:
+            - name: http
+              containerPort: 19120
+
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/nessie/data
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+
+          readinessProbe:
+            httpGet:
+              path: /api/v2/config
+              port: 19120
+            initialDelaySeconds: 10
+            periodSeconds: 5
+
+          livenessProbe:
+            tcpSocket:
+              port: 19120
+            initialDelaySeconds: 20
+            periodSeconds: 10
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: nessie-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nessie
+  namespace: gdelt
+spec:
+  selector:
+    app: nessie
+  ports:
+    - name: http
+      port: 19120
+      targetPort: 19120

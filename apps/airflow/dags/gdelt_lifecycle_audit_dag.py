@@ -1,49 +1,32 @@
-"""
-GDELT Lifecycle Audit DAG
-Event lifecycle 기반 데이터 감사 시스템
-"""
-
 from __future__ import annotations
-from datetime import datetime, timedelta
-from airflow import DAG
-from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+from datetime import timedelta
+from airflow.sdk import DAG
+from airflow.providers.standard.operators.bash import BashOperator
 import pendulum
 
+SPARK_JOBS_DIR = "/opt/airflow/spark-jobs"
+
+SPARK_ENV = {
+    "PYTHONPATH": SPARK_JOBS_DIR,
+    "MINIO_ENDPOINT": "http://minio.gdelt.svc.cluster.local:9000",
+    "MINIO_ROOT_USER": "minioadmin",
+    "MINIO_ROOT_PASSWORD": "minioadmin",
+    "SPARK_DRIVER_MEMORY": "3g",
+}
 
 with DAG(
     dag_id="gdelt_lifecycle_audit",
-    start_date=pendulum.datetime(2024, 1, 1, tz="Asia/Seoul"),
-    description="GDELT Event Lifecycle Audit System",
-    schedule=None,  # 트리거 기반 실행으로 변경
+    start_date=pendulum.datetime(2024, 1, 1, tz="UTC"),
+    schedule=None,
     catchup=False,
     max_active_runs=1,
-    tags=["gdelt", "audit", "monitoring"],
+    tags=["gdelt", "audit"],
 ) as dag:
 
-    # Lifecycle Audit 실행
-    lifecycle_audit_task = SparkSubmitOperator(
-        task_id="run_lifecycle_audit",
-        conn_id="spark_conn",
-        packages="io.delta:delta-core_2.12:2.4.0",
-        execution_timeout=timedelta(minutes=10),
-        application="/opt/airflow/validation/lifecycle_auditor.py",
-        application_args=["--hours-back", "15"],
-        conf={
-            "spark.cores.max": "1",
-            "spark.executor.memory": "1g",
-            "spark.executor.cores": "1",
-        },
-        env_vars={
-            "SPARK_MASTER_URL": "spark://spark-master:7077",
-            "PROMETHEUS_PUSHGATEWAY_URL": "http://pushgateway:9091",
-            "POSTGRES_JDBC_URL": "jdbc:postgresql://postgres:5432/airflow",
-            "POSTGRES_USER": "airflow",
-            "POSTGRES_PASSWORD": "airflow",
-        },
-        doc_md="""
-        Lifecycle Audit
-        - Main lifecycle 테이블에서 이벤트 상태 통계 생성
-        - Prometheus Pushgateway에 메트릭 전송
-        - Collection Rate, Join Yield, Sync Accuracy 검증
-        """,
+    lifecycle_audit = BashOperator(
+        task_id="lifecycle_audit",
+        bash_command=f"python {SPARK_JOBS_DIR}/audit/gdelt_lifecycle_audit.py",
+        execution_timeout=timedelta(minutes=30),
+        env=SPARK_ENV,
+        append_env=True,
     )

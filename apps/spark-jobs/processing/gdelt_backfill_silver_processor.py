@@ -15,7 +15,6 @@ from datetime import datetime, timezone
 # 모듈 임포트
 sys.path.append("/opt/airflow/spark-jobs")
 from utils.spark_builder import get_spark_session
-from utils.redis_client import redis_client
 from utils.schemas.gdelt_schemas import GDELTSchemas
 from audit.lifecycle_updater import EventLifecycleUpdater
 
@@ -165,7 +164,6 @@ def main():
     spark = get_spark_session(
         "GDELT 3Way Silver Processor"
     )
-    redis_client.register_driver_ui(spark, "GDELT 3Way Silver Processor")
 
     # Airflow가 넘겨준 인자를 sys.argv를 통해 받음
     if len(sys.argv) != 3:
@@ -290,10 +288,6 @@ def main():
         logger.error(f"Error in 3-Way Silver processing: {e}", exc_info=True)
 
     finally:
-        try:
-            redis_client.unregister_driver_ui(spark)
-        except:
-            pass
         spark.stop()
         logger.info("Spark session closed")
 

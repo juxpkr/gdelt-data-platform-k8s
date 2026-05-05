@@ -1,0 +1,131 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trino-config
+  namespace: gdelt
+data:
+  config.properties: |
+    coordinator=true
+    node-scheduler.include-coordinator=true
+    http-server.http.port=8080
+    discovery.uri=http://localhost:8080
+  jvm.config: |
+    -server
+    -Xmx2G
+    -XX:InitialRAMPercentage=80
+    -XX:MaxRAMPercentage=80
+    -XX:G1HeapRegionSize=32M
+    -XX:+ExplicitGCInvokesConcurrent
+    -XX:+HeapDumpOnOutOfMemoryError
+    -XX:+ExitOnOutOfMemoryError
+    -XX:-OmitStackTraceInFastThrow
+    -XX:ReservedCodeCacheSize=256M
+    -Djdk.attach.allowAttachSelf=true
+    -Dfile.encoding=UTF-8
+    -XX:+UseG1GC
+  node.properties: |
+    node.environment=production
+    node.id=trino-coordinator
+    node.data-dir=/data/trino
+  log.properties: |
+    io.trino=INFO
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trino-catalog
+  namespace: gdelt
+data:
+  nessie.properties: |
+    connector.name=iceberg
+    iceberg.catalog.type=rest
+    iceberg.rest-catalog.uri=http://nessie.gdelt.svc.cluster.local:19120/iceberg
+    iceberg.rest-catalog.warehouse=warehouse
+    fs.native-s3.enabled=true
+    s3.endpoint=http://minio.gdelt.svc.cluster.local:9000
+    s3.aws-access-key=minioadmin
+    s3.aws-secret-key=minioadmin
+    s3.path-style-access=true
+    s3.region=us-east-1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trino
+  namespace: gdelt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trino
+  template:
+    metadata:
+      labels:
+        app: trino
+    spec:
+      containers:
+        - name: trino
+          image: trinodb/trino:480
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config
+              mountPath: /etc/trino/config.properties
+              subPath: config.properties
+            - name: config
+              mountPath: /etc/trino/jvm.config
+              subPath: jvm.config
+            - name: config
+              mountPath: /etc/trino/node.properties
+              subPath: node.properties
+            - name: config
+              mountPath: /etc/trino/log.properties
+              subPath: log.properties
+            - name: catalog
+              mountPath: /etc/trino/catalog/nessie.properties
+              subPath: nessie.properties
+            - name: trino-data
+              mountPath: /data/trino
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: 1500m
+              memory: 3Gi
+          readinessProbe:
+            httpGet:
+              path: /v1/info
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /v1/info
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: trino-config
+        - name: catalog
+          configMap:
+            name: trino-catalog
+        - name: trino-data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trino
+  namespace: gdelt
+spec:
+  selector:
+    app: trino
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

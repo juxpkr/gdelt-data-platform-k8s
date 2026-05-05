@@ -17,7 +17,6 @@ project_root = Path(__file__).resolve().parents[1]
 sys.path.append(str(project_root))
 
 from utils.spark_builder import get_spark_session
-from utils.redis_client import redis_client
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -94,7 +93,6 @@ def main():
     spark = get_spark_session("Lifecycle_Consolidator", spark_master)
 
     # Redis에 Spark Driver UI 정보 등록
-    redis_client.register_driver_ui(spark, "Lifecycle Consolidator")
 
     logger.info("Lifecycle Consolidation Spark Job started.")
 
@@ -140,10 +138,6 @@ def main():
         logger.error(f"Lifecycle Consolidation FAILED: {str(e)}", exc_info=True)
         raise e
     finally:
-        try:
-            redis_client.unregister_driver_ui(spark)
-        except:
-            pass
         if source_df and not source_df.isEmpty():
             source_df.unpersist()
         logger.info("Lifecycle Consolidation Spark Job finished.")

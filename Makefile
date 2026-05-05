@@ -1,4 +1,5 @@
-.PHONY: help cluster-up cluster-down deploy clean status logs-airflow port-forward restart-airflow
+.PHONY: help cluster-up cluster-down deploy clean status logs-airflow port-forward restart-airflow \
+        k3s-up k3s-deploy k3s-deploy-monitoring k3s-down k3s-reset k3s-status k3s-port-forward
 
 # ANSI 색상 코드
 RED := \033[0;31m
@@ -166,3 +167,103 @@ port-forward:
 	@kubectl port-forward --address 0.0.0.0 -n $(NAMESPACE) svc/minio 9090:9001 > /dev/null 2>&1 &
 	
 	@echo "$(GREEN)[SUCCESS]$(NC) Forwarding started! Access via your Tailscale IP."
+
+# =============================================================================
+# k3s OCI 타깃 (deploy/overlays/k3s-oci)
+# =============================================================================
+
+K3S_NS := gdelt
+AIRFLOW_CHART_VERSION := 1.20.0
+
+k3s-up:
+	@echo "$(BLUE)[INFO]$(NC) Verifying k3s cluster..."
+	kubectl wait --for=condition=ready nodes --all --timeout=60s
+	@echo "$(BLUE)[INFO]$(NC) Creating namespace..."
+	kubectl apply -f deploy/overlays/k3s-oci/namespace.yaml
+	@echo "$(GREEN)[SUCCESS]$(NC) Cluster ready. Run: make k3s-deploy"
+
+k3s-deploy:
+	@echo "$(BLUE)[INFO]$(NC) 1. Deploying PostgreSQL..."
+	kubectl apply -f deploy/overlays/k3s-oci/postgres/postgres.yaml
+	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=postgres --timeout=120s
+	@echo "$(GREEN)[SUCCESS]$(NC) PostgreSQL ready."
+
+	@echo "$(BLUE)[INFO]$(NC) 2. Deploying MinIO..."
+	kubectl apply -f deploy/overlays/k3s-oci/minio/minio.yaml
+	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=minio --timeout=120s
+	kubectl apply -f deploy/overlays/k3s-oci/minio/minio-init-job.yaml
+	@echo "$(GREEN)[SUCCESS]$(NC) MinIO ready."
+
+	@echo "$(BLUE)[INFO]$(NC) 3. Deploying Kafka..."
+	kubectl apply -f deploy/overlays/k3s-oci/kafka/kafka.yaml
+	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=kafka --timeout=120s
+	@echo "$(GREEN)[SUCCESS]$(NC) Kafka ready."
+
+	@echo "$(BLUE)[INFO]$(NC) 4. Deploying Nessie..."
+	kubectl apply -f deploy/overlays/k3s-oci/nessie/nessie.yaml
+	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=nessie --timeout=120s
+	@echo "$(GREEN)[SUCCESS]$(NC) Nessie ready."
+
+	@echo "$(BLUE)[INFO]$(NC) 5. Deploying Trino..."
+	kubectl apply -f deploy/overlays/k3s-oci/trino/trino.yaml
+	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=trino --timeout=120s
+	@echo "$(GREEN)[SUCCESS]$(NC) Trino ready."
+
+	@echo "$(BLUE)[INFO]$(NC) 6. Deploying Airflow via Helm..."
+	helm repo add apache-airflow https://airflow.apache.org 2>/dev/null || true
+	helm repo update apache-airflow
+	helm upgrade --install airflow apache-airflow/airflow \
+		--namespace $(K3S_NS) \
+		--version $(AIRFLOW_CHART_VERSION) \
+		-f deploy/overlays/k3s-oci/airflow/values.yaml \
+		--timeout 10m
+	@echo "$(GREEN)[SUCCESS]$(NC) Airflow deployment triggered."
+	@echo "Check status: make k3s-status"
+
+k3s-deploy-monitoring:
+	@echo "$(BLUE)[INFO]$(NC) Deploying Prometheus + Grafana..."
+	kubectl apply -f deploy/overlays/k3s-oci/monitoring/prometheus.yaml
+	kubectl apply -f deploy/overlays/k3s-oci/monitoring/grafana.yaml
+	@echo "$(GREEN)[SUCCESS]$(NC) Monitoring stack deployed."
+
+k3s-status:
+	@echo "$(CYAN)[STATUS]$(NC) k3s Cluster (namespace: $(K3S_NS))"
+	@echo ""
+	@echo "=== Nodes ==="
+	@kubectl get nodes
+	@echo ""
+	@echo "=== Pods ==="
+	@kubectl get pods -n $(K3S_NS)
+	@echo ""
+	@echo "=== PVCs ==="
+	@kubectl get pvc -n $(K3S_NS)
+	@echo ""
+	@echo "=== Services ==="
+	@kubectl get svc -n $(K3S_NS)
+
+k3s-port-forward:
+	@echo "$(BLUE)[INFO]$(NC) Port forwarding k3s services..."
+	@kubectl port-forward --address 0.0.0.0 -n $(K3S_NS) svc/airflow-webserver 8080:8080 > /dev/null 2>&1 &
+	@kubectl port-forward --address 0.0.0.0 -n $(K3S_NS) svc/minio 9001:9001 > /dev/null 2>&1 &
+	@kubectl port-forward --address 0.0.0.0 -n $(K3S_NS) svc/grafana 3000:3000 > /dev/null 2>&1 &
+	@kubectl port-forward --address 0.0.0.0 -n $(K3S_NS) svc/prometheus 9090:9090 > /dev/null 2>&1 &
+	@echo "$(GREEN)[SUCCESS]$(NC) Airflow:8080  MinIO Console:9001  Grafana:3000  Prometheus:9090"
+
+k3s-down:
+	@echo "$(YELLOW)[INFO]$(NC) Tearing down k3s platform (namespace only, data preserved)..."
+	helm uninstall airflow -n $(K3S_NS) 2>/dev/null || true
+	kubectl delete -f deploy/overlays/k3s-oci/nessie/nessie.yaml 2>/dev/null || true
+	kubectl delete -f deploy/overlays/k3s-oci/kafka/kafka.yaml 2>/dev/null || true
+	kubectl delete -f deploy/overlays/k3s-oci/minio/minio-init-job.yaml 2>/dev/null || true
+	kubectl delete -f deploy/overlays/k3s-oci/minio/minio.yaml 2>/dev/null || true
+	kubectl delete -f deploy/overlays/k3s-oci/postgres/postgres.yaml 2>/dev/null || true
+	kubectl delete -f deploy/overlays/k3s-oci/monitoring/ 2>/dev/null || true
+	@echo "$(GREEN)[SUCCESS]$(NC) Platform down. PVCs/data preserved."
+
+k3s-reset:
+	@echo "$(RED)[RESET]$(NC) Full reset — deleting all data (PVCs included)..."
+	helm uninstall airflow -n $(K3S_NS) 2>/dev/null || true
+	kubectl delete namespace $(K3S_NS) --timeout=120s 2>/dev/null || true
+	@echo "$(YELLOW)[INFO]$(NC) Namespace deleted. Redeploying..."
+	kubectl apply -f deploy/overlays/k3s-oci/namespace.yaml
+	@echo "$(GREEN)[SUCCESS]$(NC) Reset complete. Run: make k3s-deploy"

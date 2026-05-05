@@ -15,7 +15,6 @@ project_root = Path(__file__).resolve().parents[3]
 sys.path.append(str(project_root))
 
 from utils.spark_builder import get_spark_session
-from utils.redis_client import redis_client
 from pyspark.sql import SparkSession, DataFrame
 from audit.lifecycle_updater import EventLifecycleUpdater
 
@@ -326,7 +325,6 @@ def main():
     spark = get_spark_session("GDELT_Gold_To_PostgreSQL_Migration")
 
     # Redis에 Spark Driver UI 정보 등록
-    redis_client.register_driver_ui(spark, "GDELT Gold to PostgreSQL Migration")
 
     try:
         # 마이그레이터 인스턴스 생성
@@ -368,10 +366,6 @@ def main():
         sys.exit(1)
 
     finally:
-        try:
-            redis_client.unregister_driver_ui(spark)
-        except:
-            pass
         spark.stop()
         logger.info("Spark session closed")
 

@@ -35,8 +35,7 @@ models:
       +materialized: view
       +schema: "staging"
     marts:
-      +materialized: incremental # Gold 모델은 증분 모델을 기본으로
-      +file_format: delta
+      +materialized: table
       +schema: "gold"
 
 seeds:
@@ -45,5 +44,5 @@ seeds:
 
 # dbt 실행 전 필요한 스키마들 자동 생성
 on-run-start:
-  - "CREATE SCHEMA IF NOT EXISTS seeds"
-  - "CREATE SCHEMA IF NOT EXISTS gold"
+  - "CREATE SCHEMA IF NOT EXISTS nessie.seeds"
+  - "CREATE SCHEMA IF NOT EXISTS nessie.gold"
