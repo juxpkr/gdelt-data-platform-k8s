@@ -102,8 +102,10 @@ def transform_events_to_silver(bronze_df: DataFrame) -> DataFrame:
         # Data Mgmt (59-60)
         F.col("bronze_data")[59].alias("date_added_str"),
         F.col("bronze_data")[60].alias("source_url"),
-        # 메타데이터
-        F.col("processed_at"),  # Bronze에서 가져온 수집시간 사용
+        # 메타데이터 (bronze schema 기준)
+        F.col("source_batch_id"),
+        F.col("source_batch_time"),
+        F.col("ingested_at"),
         F.col("source_file"),
     ).filter(F.col("global_event_id").isNotNull())
 

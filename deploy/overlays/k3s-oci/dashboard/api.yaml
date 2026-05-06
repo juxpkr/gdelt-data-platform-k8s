@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gdelt-api
+  namespace: gdelt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gdelt-api
+  template:
+    metadata:
+      labels:
+        app: gdelt-api
+    spec:
+      containers:
+        - name: api
+          image: juxpkr/gdelt-api:0.1.0-arm64
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: TRINO_HOST
+              value: trino.gdelt.svc.cluster.local
+            - name: TRINO_PORT
+              value: "8080"
+            - name: TRINO_USER
+              value: gdelt-api
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 512Mi
+          volumeMounts:
+            - name: api-code
+              mountPath: /app
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 15
+      volumes:
+        - name: api-code
+          hostPath:
+            path: /home/ubuntu/gdelt-data-platform-k8s/apps/api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gdelt-api
+  namespace: gdelt
+spec:
+  selector:
+    app: gdelt-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

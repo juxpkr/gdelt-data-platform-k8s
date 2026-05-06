@@ -197,18 +197,20 @@ def send_bronze_data_to_kafka(
                 record_count = 0
                 batch_records = []
 
+                # logical_date에서 source_batch_id 생성 (GDELT URL 시간 형식과 동일)
+                # "Z" suffix는 Python 3.10 이하 fromisoformat에서 파싱 불가
+                batch_dt = datetime.fromisoformat(logical_date.replace("Z", "+00:00"))
+                source_batch_id = batch_dt.strftime("%Y%m%d%H%M%S")
+
                 for row_num, row in enumerate(reader, 1):
                     try:
-                        # bronze 데이터에 메타데이터 추가
-                        current_utc = datetime.now(timezone.utc)
                         bronze_record = {
                             "data_type": data_type,
-                            "bronze_data": row,  # 전체 컬럼을 리스트로
+                            "bronze_data": row,
                             "row_number": row_num,
                             "source_file": csv_filename,
-                            "extracted_time": logical_date,
-                            "producer_timestamp": current_utc.isoformat(),  # 중복 제거용 타임스탬프
-                            "processed_at": logical_date,  # Airflow logical date
+                            "source_batch_id": source_batch_id,
+                            "source_batch_time": logical_date,
                             "source_url": url,
                             "total_columns": len(row),
                         }

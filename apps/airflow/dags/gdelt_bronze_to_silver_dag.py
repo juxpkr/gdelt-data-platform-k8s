@@ -85,8 +85,7 @@ with DAG(
         cmds=["python"],
         arguments=[
             f"{SPARK_JOBS_DIR}/processing/gdelt_silver_processor.py",
-            "{{ data_interval_start }}",
-            "{{ data_interval_end }}",
+            "{{ data_interval_start.strftime('%Y%m%d%H%M%S') }}",
         ],
         volumes=[spark_jobs_volume],
         volume_mounts=[spark_jobs_mount],

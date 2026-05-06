@@ -1,5 +1,6 @@
 .PHONY: help cluster-up cluster-down deploy clean status logs-airflow port-forward restart-airflow \
-        k3s-up k3s-deploy k3s-deploy-monitoring k3s-down k3s-reset k3s-status k3s-port-forward
+        k3s-up k3s-deploy k3s-deploy-monitoring k3s-down k3s-reset k3s-status k3s-port-forward \
+        k3s-build-api k3s-build-web k3s-deploy-dashboard k3s-undeploy-dashboard k3s-logs-api k3s-logs-web
 
 # ANSI 색상 코드
 RED := \033[0;31m
@@ -185,28 +186,28 @@ k3s-up:
 k3s-deploy:
 	@echo "$(BLUE)[INFO]$(NC) 1. Deploying PostgreSQL..."
 	kubectl apply -f deploy/overlays/k3s-oci/postgres/postgres.yaml
-	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=postgres --timeout=120s
+	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=postgres --timeout=60s
 	@echo "$(GREEN)[SUCCESS]$(NC) PostgreSQL ready."
 
 	@echo "$(BLUE)[INFO]$(NC) 2. Deploying MinIO..."
 	kubectl apply -f deploy/overlays/k3s-oci/minio/minio.yaml
-	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=minio --timeout=120s
+	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=minio --timeout=60s
 	kubectl apply -f deploy/overlays/k3s-oci/minio/minio-init-job.yaml
 	@echo "$(GREEN)[SUCCESS]$(NC) MinIO ready."
 
 	@echo "$(BLUE)[INFO]$(NC) 3. Deploying Kafka..."
 	kubectl apply -f deploy/overlays/k3s-oci/kafka/kafka.yaml
-	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=kafka --timeout=120s
+	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=kafka --timeout=60s
 	@echo "$(GREEN)[SUCCESS]$(NC) Kafka ready."
 
 	@echo "$(BLUE)[INFO]$(NC) 4. Deploying Nessie..."
 	kubectl apply -f deploy/overlays/k3s-oci/nessie/nessie.yaml
-	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=nessie --timeout=120s
+	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=nessie --timeout=60s
 	@echo "$(GREEN)[SUCCESS]$(NC) Nessie ready."
 
 	@echo "$(BLUE)[INFO]$(NC) 5. Deploying Trino..."
 	kubectl apply -f deploy/overlays/k3s-oci/trino/trino.yaml
-	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=trino --timeout=120s
+	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=trino --timeout=60s
 	@echo "$(GREEN)[SUCCESS]$(NC) Trino ready."
 
 	@echo "$(BLUE)[INFO]$(NC) 6. Deploying Airflow via Helm..."
@@ -260,10 +261,50 @@ k3s-down:
 	kubectl delete -f deploy/overlays/k3s-oci/monitoring/ 2>/dev/null || true
 	@echo "$(GREEN)[SUCCESS]$(NC) Platform down. PVCs/data preserved."
 
+# =============================================================================
+# 대시보드 타깃 (apps/api + apps/web → deploy/overlays/k3s-oci/dashboard)
+# =============================================================================
+
+DASHBOARD_TAG := 0.1.0-arm64
+
+k3s-build-api:
+	@echo "$(BLUE)[INFO]$(NC) Building gdelt-api image ($(DASHBOARD_TAG))..."
+	docker buildx build --platform linux/arm64 -t juxpkr/gdelt-api:$(DASHBOARD_TAG) apps/api/ --push
+	@echo "$(GREEN)[SUCCESS]$(NC) gdelt-api pushed: juxpkr/gdelt-api:$(DASHBOARD_TAG)"
+
+k3s-build-web:
+	@echo "$(BLUE)[INFO]$(NC) Building gdelt-web image ($(DASHBOARD_TAG))..."
+	docker buildx build --platform linux/arm64 -t juxpkr/gdelt-web:$(DASHBOARD_TAG) apps/web/ --push
+	@echo "$(GREEN)[SUCCESS]$(NC) gdelt-web pushed: juxpkr/gdelt-web:$(DASHBOARD_TAG)"
+
+k3s-deploy-dashboard:
+	@echo "$(BLUE)[INFO]$(NC) Deploying GDELT dashboard..."
+	kubectl apply -f deploy/overlays/k3s-oci/dashboard/api.yaml
+	kubectl apply -f deploy/overlays/k3s-oci/dashboard/web.yaml
+	kubectl apply -f deploy/overlays/k3s-oci/dashboard/ingress.yaml
+	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=gdelt-api --timeout=60s
+	kubectl wait --namespace $(K3S_NS) --for=condition=ready pod -l app=gdelt-web --timeout=60s
+	@echo "$(GREEN)[SUCCESS]$(NC) Dashboard deployed."
+	@echo "$(CYAN)[INFO]$(NC) API: http://<node-ip>/api/health"
+	@echo "$(CYAN)[INFO]$(NC) Web: http://<node-ip>/"
+
+k3s-undeploy-dashboard:
+	@echo "$(YELLOW)[INFO]$(NC) Removing dashboard..."
+	kubectl delete -f deploy/overlays/k3s-oci/dashboard/ 2>/dev/null || true
+	@echo "$(GREEN)[SUCCESS]$(NC) Dashboard removed."
+
+k3s-logs-api:
+	kubectl logs -n $(K3S_NS) -l app=gdelt-api --tail=100 -f
+
+k3s-logs-web:
+	kubectl logs -n $(K3S_NS) -l app=gdelt-web --tail=50
+
 k3s-reset:
 	@echo "$(RED)[RESET]$(NC) Full reset — deleting all data (PVCs included)..."
-	helm uninstall airflow -n $(K3S_NS) 2>/dev/null || true
-	kubectl delete namespace $(K3S_NS) --timeout=120s 2>/dev/null || true
-	@echo "$(YELLOW)[INFO]$(NC) Namespace deleted. Redeploying..."
+	-helm uninstall airflow -n $(K3S_NS) 2>/dev/null
+	-kubectl delete pods --all -n $(K3S_NS) --force --grace-period=0 2>/dev/null
+	-kubectl delete namespace $(K3S_NS) --wait=false 2>/dev/null
+	@echo "$(YELLOW)[INFO]$(NC) Waiting for namespace to terminate..."
+	@until ! kubectl get namespace $(K3S_NS) >/dev/null 2>&1; do sleep 2; done
 	kubectl apply -f deploy/overlays/k3s-oci/namespace.yaml
 	@echo "$(GREEN)[SUCCESS]$(NC) Reset complete. Run: make k3s-deploy"

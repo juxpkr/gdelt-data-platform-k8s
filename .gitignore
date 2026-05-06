@@ -21,3 +21,49 @@ secrets.yaml
 !README.md
 
 venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / frontend
+node_modules/
+apps/web/node_modules/
+dist/
+apps/web/dist/
+.vite/
+apps/web/.vite/
+
+# dbt local/user artifacts
+.dbt/
+.user.yml
+target/
+dbt_packages/
+logs/
+
+# Java / Spark artifacts
+*.class
+*.jar
+
+# Local env / secrets
+.env
+.env.*
+*.key
+*.crt
+*.p12
+*.jks
+kubeconfig*
+*.kubeconfig
+
+# Local generated files
+.cache/
+tmp/
+
+# TypeScript build cache
+*.tsbuildinfo
+
+apps/web/.env
+apps/web/.env.*

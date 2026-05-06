@@ -40,16 +40,16 @@ BRONZE_SCHEMA = StructType([
     StructField("bronze_data", ArrayType(StringType()), True),
     StructField("row_number", IntegerType(), True),
     StructField("source_file", StringType(), True),
-    StructField("extracted_time", StringType(), True),
-    StructField("producer_timestamp", StringType(), True),
+    StructField("source_batch_id", StringType(), True),
+    StructField("source_batch_time", StringType(), True),
     StructField("source_url", StringType(), True),
     StructField("total_columns", IntegerType(), True),
 ])
 
 DATA_TYPE_CONFIG = {
-    "events": {"pk_index": 0, "merge_key": "GLOBALEVENTID"},
-    "mentions": {"pk_index": 0, "merge_key": "GLOBALEVENTID"},
-    "gkg": {"pk_index": 0, "merge_key": "GKGRECORDID"},
+    "events":   {"pk_index": 0, "merge_key": "GLOBALEVENTID"},
+    "mentions": {"pk_index": 0, "merge_key": "mention_id"},
+    "gkg":      {"pk_index": 0, "merge_key": "GKGRECORDID"},
 }
 
 
@@ -59,19 +59,20 @@ def ensure_table_exists(spark: SparkSession, data_type: str):
     spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {namespace}")
     spark.sql(f"""
         CREATE TABLE IF NOT EXISTS {table} (
-            data_type       STRING,
-            bronze_data     ARRAY<STRING>,
-            row_number      INT,
-            source_file     STRING,
-            extracted_time  STRING,
-            producer_timestamp STRING,
-            source_url      STRING,
-            total_columns   INT,
-            processed_at    TIMESTAMP,
-            GLOBALEVENTID   STRING,
-            GKGRECORDID     STRING
+            data_type        STRING,
+            bronze_data      ARRAY<STRING>,
+            row_number       INT,
+            source_file      STRING,
+            source_batch_id  STRING,
+            source_batch_time STRING,
+            source_url       STRING,
+            total_columns    INT,
+            ingested_at      TIMESTAMP,
+            GLOBALEVENTID    STRING,
+            GKGRECORDID      STRING,
+            mention_id       STRING
         ) USING iceberg
-        PARTITIONED BY (days(processed_at))
+        PARTITIONED BY (source_batch_id)
     """)
 
 
@@ -105,15 +106,36 @@ def setup_streaming_query(spark: SparkSession, data_type: str, logger):
             parsed_df = (
                 df.select(from_json(col("value").cast("string"), BRONZE_SCHEMA).alias("d"))
                 .select("d.*")
-                .withColumn(merge_key, F.trim(col("bronze_data").getItem(pk_index)))
-                .withColumn("processed_at", to_timestamp(col("extracted_time"), "yyyy-MM-dd HH:mm:ss"))
-                .filter(col(merge_key).isNotNull() & (col(merge_key) != ""))
+                .withColumn("ingested_at", F.current_timestamp())
             )
 
-            # GLOBALEVENTID/GKGRECORDID 둘 다 컬럼으로 존재해야 스키마 맞음
-            for key in ["GLOBALEVENTID", "GKGRECORDID"]:
-                if key not in parsed_df.columns:
-                    parsed_df = parsed_df.withColumn(key, F.lit(None).cast(StringType()))
+            if data_type == "mentions":
+                # null-safe mention_id: 핵심 3개 키가 모두 비면 row 제외
+                _eid  = F.coalesce(F.trim(col("bronze_data").getItem(0)), F.lit("__NULL__"))
+                _mtd  = F.coalesce(F.trim(col("bronze_data").getItem(2)), F.lit("__NULL__"))
+                _murl = F.coalesce(F.trim(col("bronze_data").getItem(5)), F.lit("__NULL__"))
+                parsed_df = parsed_df \
+                    .withColumn("GLOBALEVENTID", F.trim(col("bronze_data").getItem(0))) \
+                    .withColumn("GKGRECORDID", F.lit(None).cast(StringType())) \
+                    .withColumn("mention_id", F.sha2(F.concat_ws("|", _eid, _mtd, _murl), 256)) \
+                    .filter(
+                        F.trim(col("bronze_data").getItem(0)).isNotNull() &
+                        (F.trim(col("bronze_data").getItem(0)) != "") &
+                        F.trim(col("bronze_data").getItem(5)).isNotNull() &
+                        (F.trim(col("bronze_data").getItem(5)) != "")
+                    )
+            elif data_type == "events":
+                parsed_df = parsed_df \
+                    .withColumn("GLOBALEVENTID", F.trim(col("bronze_data").getItem(pk_index))) \
+                    .withColumn("GKGRECORDID", F.lit(None).cast(StringType())) \
+                    .withColumn("mention_id", F.lit(None).cast(StringType()))
+            else:  # gkg
+                parsed_df = parsed_df \
+                    .withColumn("GKGRECORDID", F.trim(col("bronze_data").getItem(pk_index))) \
+                    .withColumn("GLOBALEVENTID", F.lit(None).cast(StringType())) \
+                    .withColumn("mention_id", F.lit(None).cast(StringType()))
+
+            parsed_df = parsed_df.filter(col(merge_key).isNotNull() & (col(merge_key) != ""))
 
             view_name = f"batch_{data_type}_{batch_id}"
             parsed_df.createOrReplaceGlobalTempView(view_name)

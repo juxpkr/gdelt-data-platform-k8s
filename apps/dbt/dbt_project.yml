@@ -41,8 +41,20 @@ models:
 seeds:
   analytics_dbt:
     +schema: "seeds"
+    event_detail_codes:
+      +column_types:
+        code: varchar
+        description: varchar
+    geo_country_codes:
+      +column_types:
+        fips_code: varchar
+        iso_code: varchar
+        current_iso_code: varchar
+        M49_code: varchar
+        name_eng: varchar
+        name_kor: varchar
 
-# dbt 실행 전 필요한 스키마들 자동 생성
-on-run-start:
-  - "CREATE SCHEMA IF NOT EXISTS nessie.seeds"
-  - "CREATE SCHEMA IF NOT EXISTS nessie.gold"
+# Trino는 DDL auto-commit이라 on-run-start hook에서 CREATE SCHEMA 시 transaction commit 에러 발생
+# 스키마는 아래 명령으로 Trino에서 사전 생성 (1회):
+# kubectl exec -n gdelt deploy/trino -- trino --execute \
+#   "CREATE SCHEMA IF NOT EXISTS nessie.seeds; CREATE SCHEMA IF NOT EXISTS nessie.gold;"
