@@ -21,7 +21,7 @@ def get_signals(limit: int = Query(default=30, ge=1, le=100)):
             g.source_url,
             ROUND(
                 (ABS(COALESCE(g.avg_tone, 0)) * LN(COALESCE(g.num_mentions, 1) + 1)) /
-                (COALESCE(g.goldstein_scale, 0) + 10),
+                NULLIF(COALESCE(g.goldstein_scale, 0) + 10, 0),
                 4
             ) AS risk_score
         FROM nessie.gold.gold_llm_context g
