@@ -1,5 +1,6 @@
 import sys
 import logging
+from datetime import datetime, timezone
 from pyspark.sql import SparkSession, DataFrame, functions as F
 
 sys.path.append("/opt/airflow/spark-jobs")
@@ -9,6 +10,7 @@ from processing.transformers.mentions_transformer import transform_mentions_to_s
 from processing.transformers.gkg_transformer import transform_gkg_to_silver
 from processing.joiners.gdelt_three_way_joiner import perform_three_way_join, select_final_columns
 from processing.partitioning.gdelt_date_priority import create_priority_date
+from audit.pipeline_audit_writer import write_audit
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -76,6 +78,7 @@ def merge_to_silver(spark: SparkSession, df: DataFrame, table: str, merge_key: s
 def main():
     logger.info("Starting GDELT Silver Processor...")
 
+    started_at = datetime.now(timezone.utc)
     spark = get_spark_session("GDELT_Silver_Processor")
 
     if len(sys.argv) != 2:
@@ -103,16 +106,33 @@ def main():
             merge_to_silver(spark, events_silver, SILVER_TABLES["events"], "global_event_id")
             logger.info("Events silver merged.")
 
+        output_rows = 0
         joined_df = perform_three_way_join(events_silver, mentions_silver, gkg_silver)
         if joined_df and not joined_df.rdd.isEmpty():
             final_df = select_final_columns(create_priority_date(joined_df))
+            output_rows = final_df.count()
             merge_to_silver(spark, final_df, SILVER_TABLES["events_detailed"], "global_event_id")
             logger.info("Silver events_detailed merged.")
 
         logger.info("Silver processing complete.")
+        finished_at = datetime.now(timezone.utc)
+        write_audit(
+            spark, batch_id, "silver", "success",
+            0, output_rows,
+            started_at, finished_at,
+            (finished_at - started_at).total_seconds(),
+        )
 
     except Exception as e:
         logger.error(f"Silver processor failed: {e}", exc_info=True)
+        finished_at = datetime.now(timezone.utc)
+        write_audit(
+            spark, batch_id, "silver", "failed",
+            0, 0,
+            started_at, finished_at,
+            (finished_at - started_at).total_seconds(),
+            error_message=str(e),
+        )
         raise
     finally:
         spark.stop()

@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 import logging
 
@@ -15,6 +16,7 @@ from pyspark.sql.types import (
 )
 
 from utils.spark_builder import get_spark_session
+from audit.pipeline_audit_writer import write_audit
 
 logging.basicConfig(
     level=logging.INFO,
@@ -110,7 +112,6 @@ def setup_streaming_query(spark: SparkSession, data_type: str, logger):
             )
 
             if data_type == "mentions":
-                # null-safe mention_id: 핵심 3개 키가 모두 비면 row 제외
                 _eid  = F.coalesce(F.trim(col("bronze_data").getItem(0)), F.lit("__NULL__"))
                 _mtd  = F.coalesce(F.trim(col("bronze_data").getItem(2)), F.lit("__NULL__"))
                 _murl = F.coalesce(F.trim(col("bronze_data").getItem(5)), F.lit("__NULL__"))
@@ -163,6 +164,17 @@ def setup_streaming_query(spark: SparkSession, data_type: str, logger):
 
 
 def main():
+    started_at = datetime.now(timezone.utc)
+    source_batch_id = os.getenv("SOURCE_BATCH_ID", "").strip()
+    if source_batch_id:
+        batch_id = source_batch_id
+    else:
+        batch_id = started_at.strftime("%Y%m%d%H%M%S")
+        logger.warning(
+            "SOURCE_BATCH_ID env var is missing. Falling back to job start time batch_id=%s",
+            batch_id,
+        )
+
     spark = get_spark_session(
         "GDELT_Bronze_Consumer",
         extra_packages="org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.6",
@@ -187,9 +199,30 @@ def main():
                         q.stop()
                 raise query.exception()
 
+        total_input = sum(
+            p.get("numInputRows", 0)
+            for q in queries
+            for p in q.recentProgress
+        )
+        finished_at = datetime.now(timezone.utc)
+        write_audit(
+            spark, batch_id, "bronze", "success",
+            total_input, total_input,
+            started_at, finished_at,
+            (finished_at - started_at).total_seconds(),
+        )
+
         logger.info("========== GDELT 3-Way Bronze Consumer FINISHED ==========")
     except Exception as e:
         logger.error(f"!!! FAILED: {e} !!!")
+        finished_at = datetime.now(timezone.utc)
+        write_audit(
+            spark, batch_id, "bronze", "failed",
+            0, 0,
+            started_at, finished_at,
+            (finished_at - started_at).total_seconds(),
+            error_message=str(e),
+        )
         raise
     finally:
         spark.stop()

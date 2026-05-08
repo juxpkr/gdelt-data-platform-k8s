@@ -5,6 +5,7 @@ import type {
   EventDetail,
   SignalsResponse,
   HotspotsResponse,
+  AuditRunsResponse,
 } from './types'
 
 const BASE = '/api'
@@ -56,4 +57,12 @@ export function fetchSignals(limit = 30): Promise<SignalsResponse> {
 
 export function fetchHotspots(metric = 'events', limit = 20): Promise<HotspotsResponse> {
   return apiFetch<HotspotsResponse>(`/hotspots?metric=${metric}&limit=${limit}`)
+}
+
+export function fetchAuditRuns(params: { stage?: string; status?: string; limit?: number } = {}): Promise<AuditRunsResponse> {
+  const q = new URLSearchParams()
+  if (params.stage) q.set('stage', params.stage)
+  if (params.status) q.set('status', params.status)
+  if (params.limit != null) q.set('limit', String(params.limit))
+  return apiFetch<AuditRunsResponse>(`/audit/runs?${q.toString()}`)
 }

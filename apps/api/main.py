@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import health, stats, batches, events, signals, hotspots
+from routers import health, stats, batches, events, signals, hotspots, audit
 
 app = FastAPI(title="GDELT Dashboard API", docs_url="/api/docs", openapi_url="/api/openapi.json")
 
@@ -17,3 +17,4 @@ app.include_router(batches.router, prefix="/api")
 app.include_router(events.router, prefix="/api")
 app.include_router(signals.router, prefix="/api")
 app.include_router(hotspots.router, prefix="/api")
+app.include_router(audit.router, prefix="/api")

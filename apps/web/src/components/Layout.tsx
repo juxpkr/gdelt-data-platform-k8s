@@ -7,6 +7,7 @@ const navItems = [
   { to: '/hotspots', label: 'HOTSPOTS' },
   { to: '/events', label: 'EVENTS' },
   { to: '/batches', label: 'BATCHES' },
+  { to: '/audit', label: 'AUDIT' },
 ]
 
 export function Layout() {

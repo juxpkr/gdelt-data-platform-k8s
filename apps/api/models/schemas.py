@@ -108,3 +108,24 @@ class HotspotItem(BaseModel):
 class HotspotsResponse(BaseModel):
     metric: str
     hotspots: list[HotspotItem]
+
+
+class AuditRunItem(BaseModel):
+    batch_id: str
+    stage: str
+    status: str
+    input_rows: Optional[int]
+    output_rows: Optional[int]
+    started_at: Optional[str]
+    finished_at: Optional[str]
+    duration_seconds: Optional[float]
+    error_message: Optional[str]
+
+
+class AuditRunsResponse(BaseModel):
+    runs: list[AuditRunItem]
+
+
+class AuditBatchDetail(BaseModel):
+    batch_id: str
+    runs: list[AuditRunItem]

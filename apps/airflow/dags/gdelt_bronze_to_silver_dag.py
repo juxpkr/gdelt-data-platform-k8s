@@ -63,7 +63,12 @@ with DAG(
         namespace="gdelt",
         image=SPARK_IMAGE,
         image_pull_policy="IfNotPresent",
-        env_vars=SPARK_ENV,
+        env_vars=SPARK_ENV + [
+            k8s.V1EnvVar(
+                name="SOURCE_BATCH_ID",
+                value="{{ data_interval_start.strftime('%Y%m%d%H%M%S') }}",
+            ),
+        ],
         cmds=["python"],
         arguments=[f"{SPARK_JOBS_DIR}/ingestion/gdelt_bronze_consumer.py"],
         volumes=[spark_jobs_volume],
@@ -100,6 +105,7 @@ with DAG(
         task_id="trigger_gold_pipeline",
         trigger_dag_id="gdelt_silver_to_gold",
         wait_for_completion=False,
+        conf={"source_batch_id": "{{ data_interval_start.strftime('%Y%m%d%H%M%S') }}"},
     )
 
     gdelt_producer >> bronze_consumer >> silver_processor >> trigger_gold

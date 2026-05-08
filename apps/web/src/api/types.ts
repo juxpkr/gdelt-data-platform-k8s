@@ -105,3 +105,19 @@ export interface HotspotsResponse {
   metric: string
   hotspots: HotspotItem[]
 }
+
+export interface AuditRunItem {
+  batch_id: string
+  stage: string
+  status: string
+  input_rows: number | null
+  output_rows: number | null
+  started_at: string | null
+  finished_at: string | null
+  duration_seconds: number | null
+  error_message: string | null
+}
+
+export interface AuditRunsResponse {
+  runs: AuditRunItem[]
+}

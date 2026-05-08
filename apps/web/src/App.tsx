@@ -5,6 +5,7 @@ import { Signals } from '@/pages/Signals'
 import { Hotspots } from '@/pages/Hotspots'
 import { EventsExplorer } from '@/pages/EventsExplorer'
 import { BatchMonitor } from '@/pages/BatchMonitor'
+import { Audit } from '@/pages/Audit'
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="hotspots" element={<Hotspots />} />
           <Route path="events" element={<EventsExplorer />} />
           <Route path="batches" element={<BatchMonitor />} />
+          <Route path="audit" element={<Audit />} />
         </Route>
       </Routes>
     </BrowserRouter>

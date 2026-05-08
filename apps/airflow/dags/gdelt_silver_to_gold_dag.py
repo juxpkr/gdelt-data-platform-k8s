@@ -2,6 +2,7 @@ from __future__ import annotations
 from datetime import timedelta
 from airflow.sdk import DAG
 from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
+from airflow.utils.trigger_rule import TriggerRule
 from kubernetes.client import models as k8s
 import pendulum
 
@@ -21,6 +22,73 @@ dbt_mount = k8s.V1VolumeMount(
     mount_path="/app",
     read_only=True,
 )
+
+
+def _make_audit_pod(task_id: str, name: str, status: str, trigger_rule, err_msg: str | None = None):
+    err_py = repr(err_msg)  # None → 'None' / "dbt build failed" → "'dbt build failed'"
+    code = f"""
+import trino, datetime, os, logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+started = datetime.datetime.fromisoformat(os.environ["STARTED_AT"])
+now = datetime.datetime.now(datetime.timezone.utc)
+duration = (now - started).total_seconds()
+
+source_batch_id = os.environ.get("SOURCE_BATCH_ID", "").strip()
+if source_batch_id:
+    logger.info("SOURCE_BATCH_ID from conf: %s", source_batch_id)
+    batch_id = source_batch_id
+else:
+    logger.warning("SOURCE_BATCH_ID not provided or empty — fallback to timestamp batch_id (E2E grouping will not work)")
+    batch_id = now.strftime("%Y%m%d%H%M%S")
+
+conn = trino.dbapi.connect(
+    host="trino.gdelt.svc.cluster.local", port=8080,
+    user="airflow-gold-audit", http_scheme="http"
+)
+cur = conn.cursor()
+
+output_rows = 0
+if "{status}" == "success":
+    cur.execute("SELECT COUNT(*) FROM nessie.gold.gold_llm_context")
+    output_rows = cur.fetchone()[0]
+
+started_str = started.strftime("%Y-%m-%d %H:%M:%S.%f")
+err_msg = {err_py}
+err_sql = "NULL" if err_msg is None else "'" + err_msg.replace("'", "''") + "'"
+
+cur.execute(f\"\"\"
+    INSERT INTO nessie.audit.pipeline_batch_runs VALUES (
+        '{{batch_id}}', 'gold', '{status}', 0, {{output_rows}},
+        TIMESTAMP '{{started_str}}', CURRENT_TIMESTAMP, {{duration}},
+        {{err_sql}}, CURRENT_TIMESTAMP
+    )
+\"\"\")
+conn.commit()
+logger.info("Gold audit inserted: batch_id=%s status={status} output_rows=%d duration=%.1fs", batch_id, output_rows, duration)
+"""
+    return KubernetesPodOperator(
+        task_id=task_id,
+        name=name,
+        namespace="gdelt",
+        image=DBT_IMAGE,
+        image_pull_policy="IfNotPresent",
+        cmds=["python", "-c"],
+        arguments=[code],
+        env_vars=[
+            k8s.V1EnvVar(name="STARTED_AT",      value="{{ dag_run.start_date.isoformat() }}"),
+            k8s.V1EnvVar(name="SOURCE_BATCH_ID", value="{{ dag_run.conf.get('source_batch_id', '') }}"),
+        ],
+        execution_timeout=timedelta(minutes=5),
+        get_logs=True,
+        is_delete_operator_pod=True,
+        on_finish_action="delete_pod",
+        in_cluster=True,
+        trigger_rule=trigger_rule,
+    )
+
 
 with DAG(
     dag_id="gdelt_silver_to_gold",
@@ -64,3 +132,16 @@ with DAG(
         on_finish_action="delete_pod",
         in_cluster=True,
     )
+
+    audit_gold_success = _make_audit_pod(
+        "audit_gold_success", "audit-gold-success",
+        status="success", trigger_rule=TriggerRule.ALL_SUCCESS,
+    )
+
+    audit_gold_failed = _make_audit_pod(
+        "audit_gold_failed", "audit-gold-failed",
+        status="failed", trigger_rule=TriggerRule.ONE_FAILED,
+        err_msg="dbt build failed",
+    )
+
+    dbt_transformation >> [audit_gold_success, audit_gold_failed]
