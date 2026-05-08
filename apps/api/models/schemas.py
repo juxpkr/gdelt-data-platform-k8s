@@ -114,12 +114,12 @@ class AuditRunItem(BaseModel):
     batch_id: str
     stage: str
     status: str
-    input_rows: Optional[int]
-    output_rows: Optional[int]
-    started_at: Optional[str]
-    finished_at: Optional[str]
-    duration_seconds: Optional[float]
-    error_message: Optional[str]
+    input_rows: Optional[int] = None
+    output_rows: Optional[int] = None
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    duration_seconds: Optional[float] = None
+    error_message: Optional[str] = None
 
 
 class AuditRunsResponse(BaseModel):

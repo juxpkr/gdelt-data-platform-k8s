@@ -163,17 +163,21 @@ def setup_streaming_query(spark: SparkSession, data_type: str, logger):
     return query
 
 
-def main():
-    started_at = datetime.now(timezone.utc)
+def _resolve_batch_id(started_at: datetime) -> str:
     source_batch_id = os.getenv("SOURCE_BATCH_ID", "").strip()
     if source_batch_id:
-        batch_id = source_batch_id
-    else:
-        batch_id = started_at.strftime("%Y%m%d%H%M%S")
-        logger.warning(
-            "SOURCE_BATCH_ID env var is missing. Falling back to job start time batch_id=%s",
-            batch_id,
-        )
+        return source_batch_id
+    batch_id = started_at.strftime("%Y%m%d%H%M%S")
+    logger.warning(
+        "SOURCE_BATCH_ID env var is missing. Falling back to job start time batch_id=%s",
+        batch_id,
+    )
+    return batch_id
+
+
+def main():
+    started_at = datetime.now(timezone.utc)
+    batch_id = _resolve_batch_id(started_at)
 
     spark = get_spark_session(
         "GDELT_Bronze_Consumer",

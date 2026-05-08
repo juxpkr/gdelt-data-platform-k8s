@@ -16,11 +16,12 @@ def _to_run(r: dict) -> AuditRunItem:
         batch_id=r["batch_id"],
         stage=r["stage"],
         status=r["status"],
-        input_rows=int(r["input_rows"]),
-        output_rows=int(r["output_rows"]),
-        duration_seconds=float(r["duration_seconds"]) if r["duration_seconds"] is not None else None,
+        input_rows=int(r["input_rows"]) if r.get("input_rows") is not None else None,
+        output_rows=int(r["output_rows"]) if r.get("output_rows") is not None else None,
+        started_at=r.get("started_at"),
+        finished_at=r.get("finished_at"),
+        duration_seconds=float(r["duration_seconds"]) if r.get("duration_seconds") is not None else None,
         error_message=r.get("error_message"),
-        created_at=r.get("created_at"),
     )
 
 
@@ -46,11 +47,13 @@ def get_audit_runs(
         rows = fetch_all(f"""
             SELECT
                 batch_id, stage, status,
-                input_rows, output_rows, duration_seconds, error_message,
-                CAST(created_at AS varchar) AS created_at
+                input_rows, output_rows,
+                CAST(started_at AS varchar) AS started_at,
+                CAST(finished_at AS varchar) AS finished_at,
+                duration_seconds, error_message
             FROM nessie.audit.pipeline_batch_runs
             {where}
-            ORDER BY created_at DESC
+            ORDER BY started_at DESC
             LIMIT {limit}
         """)
         return AuditRunsResponse(runs=[_to_run(r) for r in rows])
@@ -67,11 +70,13 @@ def get_audit_batch(batch_id: str):
         rows = fetch_all(f"""
             SELECT
                 batch_id, stage, status,
-                input_rows, output_rows, duration_seconds, error_message,
-                CAST(created_at AS varchar) AS created_at
+                input_rows, output_rows,
+                CAST(started_at AS varchar) AS started_at,
+                CAST(finished_at AS varchar) AS finished_at,
+                duration_seconds, error_message
             FROM nessie.audit.pipeline_batch_runs
             WHERE batch_id = '{batch_id}'
-            ORDER BY created_at ASC
+            ORDER BY started_at ASC
         """)
         if not rows:
             raise HTTPException(status_code=404, detail="batch_id not found")
