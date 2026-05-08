@@ -1,0 +1,402 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: gdelt
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: gdelt-prometheus
+        access: proxy
+        url: http://prometheus.gdelt.svc.cluster.local:9090
+        isDefault: true
+        jsonData:
+          timeInterval: "30s"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: gdelt
+data:
+  provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: GDELT
+        type: file
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-gdelt
+  namespace: gdelt
+data:
+  gdelt-pipeline.json: |
+    {
+      "title": "GDELT Pipeline Observability",
+      "uid": "gdelt-pipeline-obs",
+      "schemaVersion": 38,
+      "version": 2,
+      "refresh": "30s",
+      "time": {"from": "now-3h", "to": "now"},
+      "panels": [
+
+        {
+          "id": 100,
+          "type": "row",
+          "title": "Summary",
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+          "collapsed": false
+        },
+
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Pipeline Health",
+          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 1},
+          "targets": [{"expr": "gdelt_pipeline_health", "legendFormat": ""}],
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red", "value": null},
+                  {"color": "green", "value": 1}
+                ]
+              },
+              "mappings": [
+                {"type": "value", "options": {
+                  "0": {"text": "UNHEALTHY", "index": 0},
+                  "1": {"text": "HEALTHY", "index": 1}
+                }}
+              ]
+            }
+          }
+        },
+
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "E2E Complete",
+          "gridPos": {"h": 4, "w": 3, "x": 4, "y": 1},
+          "targets": [{"expr": "gdelt_e2e_complete_batch_available", "legendFormat": ""}],
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red", "value": null},
+                  {"color": "green", "value": 1}
+                ]
+              },
+              "mappings": [
+                {"type": "value", "options": {
+                  "0": {"text": "MISSING", "index": 0},
+                  "1": {"text": "OK", "index": 1}
+                }}
+              ]
+            }
+          }
+        },
+
+        {
+          "id": 3,
+          "type": "gauge",
+          "title": "Data Freshness",
+          "gridPos": {"h": 4, "w": 6, "x": 7, "y": 1},
+          "targets": [{"expr": "gdelt_pipeline_freshness_seconds", "legendFormat": ""}],
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "orientation": "auto"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "min": 0,
+              "max": 3600,
+              "color": {"mode": "thresholds"},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 900},
+                  {"color": "red", "value": 1800}
+                ]
+              }
+            }
+          }
+        },
+
+        {
+          "id": 8,
+          "type": "stat",
+          "title": "E2E Duration",
+          "description": "Latest E2E complete batch: bronze start → gold finish",
+          "gridPos": {"h": 4, "w": 5, "x": 13, "y": 1},
+          "targets": [{"expr": "gdelt_e2e_duration_seconds", "legendFormat": ""}],
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "color": {"mode": "thresholds"},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 180},
+                  {"color": "red", "value": 300}
+                ]
+              }
+            }
+          }
+        },
+
+        {
+          "id": 7,
+          "type": "stat",
+          "title": "Gold Table Size",
+          "description": "nessie.gold.gold_llm_context 전체 행 수 (dbt full rebuild 기준)",
+          "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
+          "targets": [{"expr": "gdelt_latest_batch_output_rows{stage=\"gold\"}", "legendFormat": ""}],
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": {"mode": "thresholds"},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [{"color": "blue", "value": null}]
+              }
+            }
+          }
+        },
+
+        {
+          "id": 101,
+          "type": "row",
+          "title": "Current Batch",
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5},
+          "collapsed": false
+        },
+
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "Stage Status",
+          "gridPos": {"h": 6, "w": 4, "x": 0, "y": 6},
+          "targets": [
+            {"expr": "gdelt_pipeline_stage_success{stage=\"bronze\"}", "legendFormat": "bronze"},
+            {"expr": "gdelt_pipeline_stage_success{stage=\"silver\"}", "legendFormat": "silver"},
+            {"expr": "gdelt_pipeline_stage_success{stage=\"gold\"}", "legendFormat": "gold"}
+          ],
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "orientation": "horizontal",
+            "reduceOptions": {"calcs": ["lastNotNull"]}
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red", "value": null},
+                  {"color": "green", "value": 1}
+                ]
+              },
+              "mappings": [
+                {"type": "value", "options": {
+                  "0": {"text": "FAIL", "index": 0},
+                  "1": {"text": "OK", "index": 1}
+                }}
+              ]
+            }
+          }
+        },
+
+        {
+          "id": 5,
+          "type": "bargauge",
+          "title": "Stage Duration",
+          "gridPos": {"h": 6, "w": 8, "x": 4, "y": 6},
+          "targets": [
+            {"expr": "gdelt_pipeline_stage_duration_seconds{stage=\"bronze\"}", "legendFormat": "bronze"},
+            {"expr": "gdelt_pipeline_stage_duration_seconds{stage=\"silver\"}", "legendFormat": "silver"},
+            {"expr": "gdelt_pipeline_stage_duration_seconds{stage=\"gold\"}", "legendFormat": "gold"}
+          ],
+          "options": {
+            "orientation": "horizontal",
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "displayMode": "gradient"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "color": {"mode": "palette-classic"}
+            }
+          }
+        },
+
+        {
+          "id": 6,
+          "type": "bargauge",
+          "title": "Batch Output Rows",
+          "description": "bronze: ingested rows / silver: joined rows (per E2E batch)",
+          "gridPos": {"h": 6, "w": 6, "x": 12, "y": 6},
+          "targets": [
+            {"expr": "gdelt_latest_batch_output_rows{stage=\"bronze\"}", "legendFormat": "bronze"},
+            {"expr": "gdelt_latest_batch_output_rows{stage=\"silver\"}", "legendFormat": "silver"}
+          ],
+          "options": {
+            "orientation": "horizontal",
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "displayMode": "gradient"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": {"mode": "palette-classic"}
+            }
+          }
+        },
+
+        {
+          "id": 9,
+          "type": "gauge",
+          "title": "Bronze → Silver Retention",
+          "description": "silver output_rows / bronze output_rows (latest E2E batch)",
+          "gridPos": {"h": 6, "w": 6, "x": 18, "y": 6},
+          "targets": [{"expr": "gdelt_bronze_to_silver_retention_ratio", "legendFormat": ""}],
+          "options": {
+            "reduceOptions": {"calcs": ["lastNotNull"]},
+            "orientation": "auto"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "color": {"mode": "thresholds"},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red", "value": null},
+                  {"color": "yellow", "value": 0.05},
+                  {"color": "green", "value": 0.1}
+                ]
+              }
+            }
+          }
+        },
+
+        {
+          "id": 102,
+          "type": "row",
+          "title": "Trends",
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 12},
+          "collapsed": false
+        },
+
+        {
+          "id": 11,
+          "type": "timeseries",
+          "title": "Stage Duration Trend",
+          "gridPos": {"h": 8, "w": 8, "x": 0, "y": 13},
+          "targets": [
+            {"expr": "gdelt_pipeline_stage_duration_seconds{stage=\"bronze\"}", "legendFormat": "bronze"},
+            {"expr": "gdelt_pipeline_stage_duration_seconds{stage=\"silver\"}", "legendFormat": "silver"},
+            {"expr": "gdelt_pipeline_stage_duration_seconds{stage=\"gold\"}", "legendFormat": "gold"}
+          ],
+          "options": {
+            "tooltip": {"mode": "multi"},
+            "legend": {"displayMode": "list", "placement": "bottom"}
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "color": {"mode": "palette-classic"},
+              "custom": {"lineWidth": 2, "fillOpacity": 10}
+            }
+          }
+        },
+
+        {
+          "id": 12,
+          "type": "timeseries",
+          "title": "Output Rows Trend",
+          "gridPos": {"h": 8, "w": 8, "x": 8, "y": 13},
+          "targets": [
+            {"expr": "gdelt_latest_batch_output_rows{stage=\"bronze\"}", "legendFormat": "bronze"},
+            {"expr": "gdelt_latest_batch_output_rows{stage=\"silver\"}", "legendFormat": "silver"}
+          ],
+          "options": {
+            "tooltip": {"mode": "multi"},
+            "legend": {"displayMode": "list", "placement": "bottom"}
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": {"mode": "palette-classic"},
+              "custom": {"lineWidth": 2, "fillOpacity": 10}
+            }
+          }
+        },
+
+        {
+          "id": 13,
+          "type": "timeseries",
+          "title": "Freshness Trend",
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 13},
+          "targets": [
+            {"expr": "gdelt_pipeline_freshness_seconds", "legendFormat": "freshness"},
+            {"expr": "gdelt_e2e_duration_seconds", "legendFormat": "e2e duration"}
+          ],
+          "options": {
+            "tooltip": {"mode": "multi"},
+            "legend": {"displayMode": "list", "placement": "bottom"}
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "color": {"mode": "palette-classic"},
+              "custom": {"lineWidth": 2, "fillOpacity": 10},
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "red", "value": 1800}
+                ]
+              }
+            }
+          }
+        }
+
+      ]
+    }

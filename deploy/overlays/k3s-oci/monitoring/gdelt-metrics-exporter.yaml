@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gdelt-metrics-exporter
+  namespace: gdelt
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gdelt-metrics-exporter
+  template:
+    metadata:
+      labels:
+        app: gdelt-metrics-exporter
+    spec:
+      containers:
+        - name: metrics-exporter
+          image: juxpkr/gdelt-metrics-exporter:0.1.3-arm64
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: TRINO_HOST
+              value: trino.gdelt.svc.cluster.local
+            - name: TRINO_PORT
+              value: "8080"
+            - name: TRINO_USER
+              value: gdelt-metrics-exporter
+            - name: TRINO_CATALOG
+              value: nessie
+            - name: TRINO_SCHEMA
+              value: audit
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gdelt-metrics-exporter
+  namespace: gdelt
+spec:
+  selector:
+    app: gdelt-metrics-exporter
+  ports:
+    - port: 8000
+      targetPort: 8000
