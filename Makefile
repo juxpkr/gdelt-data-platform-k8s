@@ -2,7 +2,7 @@
         down reset status port-forward logs-api logs-web \
         build-api build-web undeploy-dashboard \
         install-test-deps test-spark test-api test-metrics test \
-        smoke-k3s
+        smoke-k3s smoke-silver-quality
 
 RED    := \033[0;31m
 GREEN  := \033[0;32m
@@ -188,3 +188,6 @@ MAX_AGE_MINUTES ?= 30
 
 smoke-k3s:
 	python3 tools/smoke/check_e2e_batch.py --max-age-minutes $(MAX_AGE_MINUTES)
+
+smoke-silver-quality:
+	python3 tools/smoke/check_silver_quality.py

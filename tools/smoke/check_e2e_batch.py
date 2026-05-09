@@ -98,6 +98,29 @@ def fetch_stage_rows(batch_id: str, namespace: str, trino_deploy: str) -> list[S
     ]
 
 
+def fetch_silver_quality(batch_id: str, namespace: str, trino_deploy: str) -> dict:
+    """silver 테이블의 데이터 품질 지표를 반환한다."""
+    sql = f"""
+    SELECT
+      COUNT(*)                                                              AS total,
+      COUNT(DISTINCT global_event_id)                                       AS distinct_ids,
+      SUM(CASE WHEN mention_source_name IS NOT NULL THEN 1 ELSE 0 END)     AS mention_joined,
+      SUM(CASE WHEN event_code IS NULL THEN 1 ELSE 0 END)                  AS event_code_nulls
+    FROM nessie.silver.gdelt_events_detailed
+    WHERE source_batch_id = '{batch_id}'
+    """
+    rows = _parse_rows(_trino_exec(sql, namespace, trino_deploy))
+    if not rows:
+        return {}
+    r = rows[0]
+    return {
+        "total":            int(r[0]),
+        "distinct_ids":     int(r[1]),
+        "mention_joined":   int(r[2]),
+        "event_code_nulls": int(r[3]),
+    }
+
+
 def fetch_age_seconds(batch_id: str, namespace: str, trino_deploy: str) -> float:
     sql = f"""
     SELECT to_unixtime(CURRENT_TIMESTAMP) - to_unixtime(MAX(finished_at)) AS age_seconds
@@ -210,6 +233,45 @@ def main() -> int:
         if row.duration_seconds < 0:
             print(f"{FAIL} {row.stage} duration_seconds = {row.duration_seconds} (expected >= 0)")
             failed = True
+
+    # ── 5. silver data quality ──
+    print()
+    print(f"{INFO} Silver data quality (source_batch_id={batch_id}) ...")
+    try:
+        sq = fetch_silver_quality(batch_id, ns, td)
+    except RuntimeError as e:
+        print(f"{FAIL} Failed to query silver quality: {e}", file=sys.stderr)
+        failed = True
+        sq = {}
+
+    if sq:
+        total = sq["total"]
+        distinct = sq["distinct_ids"]
+        mention_joined = sq["mention_joined"]
+        event_code_nulls = sq["event_code_nulls"]
+
+        # dedup 보장
+        if total == distinct:
+            print(f"{OK} global_event_id unique: {total:,} rows, no duplicates")
+        else:
+            dupes = total - distinct
+            print(f"{FAIL} global_event_id duplicates found: {dupes:,} ({total:,} total, {distinct:,} distinct)")
+            failed = True
+
+        # event_code not null
+        if event_code_nulls == 0:
+            print(f"{OK} event_code: no NULLs")
+        else:
+            print(f"{FAIL} event_code NULL: {event_code_nulls:,} rows")
+            failed = True
+
+        # mention join 완전성 (경고만 — 배치마다 mentions 수가 다를 수 있음)
+        mention_rate = mention_joined / total * 100 if total > 0 else 0
+        if mention_rate >= 50:
+            print(f"{OK} mention join rate: {mention_rate:.1f}% ({mention_joined:,}/{total:,})")
+        else:
+            WARN = "\033[0;33m[WARN]\033[0m"
+            print(f"{WARN} mention join rate low: {mention_rate:.1f}% ({mention_joined:,}/{total:,})")
 
     print()
     if failed:
