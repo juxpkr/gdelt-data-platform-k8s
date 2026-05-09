@@ -1,6 +1,8 @@
 .PHONY: help up deploy deploy-monitoring deploy-dashboard deploy-metrics-exporter \
         down reset status port-forward logs-api logs-web \
-        build-api build-web undeploy-dashboard
+        build-api build-web undeploy-dashboard \
+        install-test-deps test-spark test-api test-metrics test \
+        smoke-k3s
 
 RED    := \033[0;31m
 GREEN  := \033[0;32m
@@ -161,3 +163,28 @@ logs-api:
 
 logs-web:
 	kubectl logs -n $(NS) -l app=gdelt-web --tail=50
+
+# ─── Tests ───────────────────────────────────────────────────────────────────
+
+install-test-deps:
+	pip3 install -q -r apps/spark-jobs/requirements-dev.txt
+	pip3 install -q -r apps/api/requirements-dev.txt
+	pip3 install -q -r apps/metrics-exporter/requirements-dev.txt
+	@echo "$(GREEN)[SUCCESS]$(NC) Test dependencies installed."
+
+test-spark:
+	cd apps/spark-jobs && python3 -m pytest tests/ -v
+
+test-api:
+	cd apps/api && python3 -m pytest tests/ -v
+
+test-metrics:
+	cd apps/metrics-exporter && python3 -m pytest tests/ -v
+
+test: test-spark test-api test-metrics
+	@echo "$(GREEN)[SUCCESS]$(NC) All tests passed."
+
+MAX_AGE_MINUTES ?= 30
+
+smoke-k3s:
+	python3 tools/smoke/check_e2e_batch.py --max-age-minutes $(MAX_AGE_MINUTES)

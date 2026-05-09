@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+"""k3s E2E pipeline smoke test.
+
+실제 배포된 Trino에 쿼리해서 최신 E2E complete batch(bronze/silver/gold 모두 success)가
+정상인지 검증한다. CI 또는 수동 운영 점검용.
+"""
+import argparse
+import csv
+import io
+import subprocess
+import sys
+from dataclasses import dataclass
+
+# ─── ANSI ────────────────────────────────────────────────────────────────────
+
+OK   = "\033[0;32m[OK]\033[0m"
+FAIL = "\033[0;31m[FAIL]\033[0m"
+INFO = "\033[0;34m[INFO]\033[0m"
+
+
+# ─── Trino query ─────────────────────────────────────────────────────────────
+
+def _trino_exec(sql: str, namespace: str, trino_deploy: str) -> str:
+    cmd = [
+        "kubectl", "exec", "-n", namespace, trino_deploy,
+        "--", "trino", "--execute", sql,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"trino command failed (exit {result.returncode}):\n{result.stderr.strip()}"
+        )
+    return result.stdout.strip()
+
+
+def _parse_rows(output: str) -> list[list[str]]:
+    """Trino CLI CSV 출력 → list of row lists (따옴표 제거)."""
+    if not output:
+        return []
+    reader = csv.reader(io.StringIO(output))
+    return list(reader)
+
+
+@dataclass
+class StageRow:
+    stage: str
+    status: str
+    input_rows: int
+    output_rows: int
+    duration_seconds: float
+    started_at: str
+    finished_at: str
+
+
+# ─── Checks ──────────────────────────────────────────────────────────────────
+
+def find_latest_e2e_batch(namespace: str, trino_deploy: str) -> str | None:
+    sql = """
+    SELECT batch_id
+    FROM nessie.audit.pipeline_batch_runs
+    GROUP BY batch_id
+    HAVING COUNT(DISTINCT stage) = 3
+       AND SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) = 3
+    ORDER BY MAX(finished_at) DESC
+    LIMIT 1
+    """
+    rows = _parse_rows(_trino_exec(sql, namespace, trino_deploy))
+    return rows[0][0] if rows else None
+
+
+def fetch_stage_rows(batch_id: str, namespace: str, trino_deploy: str) -> list[StageRow]:
+    sql = f"""
+    SELECT stage, status, input_rows, output_rows, duration_seconds,
+           CAST(started_at AS varchar) AS started_at,
+           CAST(finished_at AS varchar) AS finished_at
+    FROM nessie.audit.pipeline_batch_runs
+    WHERE batch_id = '{batch_id}'
+    ORDER BY
+      CASE stage
+        WHEN 'bronze' THEN 1
+        WHEN 'silver' THEN 2
+        WHEN 'gold'   THEN 3
+        ELSE 99
+      END
+    """
+    raw = _parse_rows(_trino_exec(sql, namespace, trino_deploy))
+    return [
+        StageRow(
+            stage=r[0],
+            status=r[1],
+            input_rows=int(r[2]),
+            output_rows=int(r[3]),
+            duration_seconds=float(r[4]),
+            started_at=r[5],
+            finished_at=r[6],
+        )
+        for r in raw
+    ]
+
+
+def fetch_age_seconds(batch_id: str, namespace: str, trino_deploy: str) -> float:
+    sql = f"""
+    SELECT to_unixtime(CURRENT_TIMESTAMP) - to_unixtime(MAX(finished_at)) AS age_seconds
+    FROM nessie.audit.pipeline_batch_runs
+    WHERE batch_id = '{batch_id}'
+    """
+    rows = _parse_rows(_trino_exec(sql, namespace, trino_deploy))
+    if not rows or rows[0][0] in ("", "NULL", "null"):
+        return float("inf")
+    return float(rows[0][0])
+
+
+# ─── Output helpers ───────────────────────────────────────────────────────────
+
+def print_stage_table(rows: list[StageRow]) -> None:
+    header = f"{'stage':<8} {'status':<9} {'input_rows':>11} {'output_rows':>12} {'duration_s':>11}"
+    print(header)
+    print("-" * len(header))
+    for r in rows:
+        print(
+            f"{r.stage:<8} {r.status:<9} {r.input_rows:>11,} {r.output_rows:>12,} "
+            f"{r.duration_seconds:>10.2f}s"
+        )
+
+
+# ─── Main ─────────────────────────────────────────────────────────────────────
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="GDELT k3s E2E pipeline smoke test")
+    parser.add_argument("--max-age-minutes", type=int, default=30,
+                        help="최신 E2E batch의 허용 최대 경과 시간 (분, 기본 30)")
+    parser.add_argument("--namespace", default="gdelt",
+                        help="k8s namespace (기본 gdelt)")
+    parser.add_argument("--trino-deploy", default="deploy/trino",
+                        help="Trino deploy 대상 (기본 deploy/trino)")
+    args = parser.parse_args()
+
+    max_age_seconds = args.max_age_minutes * 60
+    ns = args.namespace
+    td = args.trino_deploy
+    failed = False
+
+    # ── 1. latest E2E complete batch 찾기 ──
+    print(f"{INFO} Querying latest E2E complete batch (namespace={ns}, trino={td}) ...")
+    try:
+        batch_id = find_latest_e2e_batch(ns, td)
+    except RuntimeError as e:
+        print(f"{FAIL} Trino query failed: {e}", file=sys.stderr)
+        return 1
+
+    if not batch_id:
+        print(
+            f"{FAIL} No complete E2E batch found. "
+            "Expected bronze/silver/gold success rows with same batch_id.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"{OK} Latest complete E2E batch: {batch_id}")
+    print()
+
+    # ── 2. stage 상세 출력 ──
+    try:
+        stages = fetch_stage_rows(batch_id, ns, td)
+    except RuntimeError as e:
+        print(f"{FAIL} Failed to fetch stage rows: {e}", file=sys.stderr)
+        return 1
+
+    print_stage_table(stages)
+    print()
+
+    # ── 3. freshness 검증 ──
+    try:
+        age = fetch_age_seconds(batch_id, ns, td)
+    except RuntimeError as e:
+        print(f"{FAIL} Failed to fetch freshness: {e}", file=sys.stderr)
+        return 1
+
+    if age <= max_age_seconds:
+        print(f"{OK} Freshness: {age:.0f}s <= {max_age_seconds}s")
+    else:
+        print(f"{FAIL} Latest complete batch is stale: {age:.0f}s > {max_age_seconds}s")
+        failed = True
+
+    # ── 4. row sanity ──
+    stage_map = {r.stage: r for r in stages}
+
+    bronze = stage_map.get("bronze")
+    if bronze is None:
+        print(f"{FAIL} bronze stage row missing from batch {batch_id}")
+        failed = True
+    elif bronze.output_rows <= 0:
+        print(f"{FAIL} bronze output_rows = {bronze.output_rows} (expected > 0)")
+        failed = True
+    else:
+        print(f"{OK} bronze output_rows: {bronze.output_rows:,}")
+
+    for stage_name in ("silver", "gold"):
+        row = stage_map.get(stage_name)
+        if row is None:
+            print(f"{FAIL} {stage_name} stage row missing from batch {batch_id}")
+            failed = True
+        elif row.output_rows < 0:
+            print(f"{FAIL} {stage_name} output_rows = {row.output_rows} (expected >= 0)")
+            failed = True
+        else:
+            print(f"{OK} {stage_name} output_rows: {row.output_rows:,}")
+
+    for row in stages:
+        if row.duration_seconds < 0:
+            print(f"{FAIL} {row.stage} duration_seconds = {row.duration_seconds} (expected >= 0)")
+            failed = True
+
+    print()
+    if failed:
+        print(f"{FAIL} Smoke test FAILED.")
+        return 1
+
+    print(f"{OK} All checks passed.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
