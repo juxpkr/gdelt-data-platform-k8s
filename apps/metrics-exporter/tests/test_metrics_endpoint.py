@@ -4,6 +4,21 @@ PIPELINE_ROWS = [
     {"stage": "gold",   "status": "success", "output_rows": 130,  "duration_seconds": 15.0},
 ]
 
+_SILVER_QUALITY = {
+    "dedup_violations":   0.0,
+    "core_null_count":    0.0,
+    "mention_join_ratio": 0.95,
+    "gkg_coverage_ratio": 0.08,
+}
+
+
+def _patch_all(mocker):
+    mocker.patch("main.collect_pipeline_metrics", return_value=(PIPELINE_ROWS, True))
+    mocker.patch("main.collect_freshness_metrics", return_value=(300.0, 1))
+    mocker.patch("main.collect_e2e_extra_metrics", return_value=(90.0, 0.13, 20260509153000.0, 0))
+    mocker.patch("main.collect_gold_total_rows", return_value=890)
+    mocker.patch("main.collect_silver_quality_metrics", return_value=_SILVER_QUALITY)
+
 
 def test_health_returns_ok(client):
     r = client.get("/health")
@@ -12,10 +27,7 @@ def test_health_returns_ok(client):
 
 
 def test_metrics_returns_200_with_gdelt_prefix(client, mocker):
-    mocker.patch("main.collect_pipeline_metrics", return_value=(PIPELINE_ROWS, True))
-    mocker.patch("main.collect_freshness_metrics", return_value=(300.0, 1))
-    mocker.patch("main.collect_e2e_extra_metrics", return_value=(90.0, 0.13, 0))
-
+    _patch_all(mocker)
     r = client.get("/metrics")
     assert r.status_code == 200
     assert "gdelt_" in r.text
@@ -31,11 +43,15 @@ def test_metrics_200_on_trino_failure(client, mocker):
 
 
 def test_metrics_no_batch_id_in_labels(client, mocker):
-    mocker.patch("main.collect_pipeline_metrics", return_value=(PIPELINE_ROWS, True))
-    mocker.patch("main.collect_freshness_metrics", return_value=(300.0, 1))
-    mocker.patch("main.collect_e2e_extra_metrics", return_value=(90.0, 0.13, 0))
-
+    _patch_all(mocker)
     r = client.get("/metrics")
     # prometheus label 형식은 key="value" — HELP 설명 문자열이 아니라 label key로 노출되는지 확인
     assert 'batch_id="' not in r.text
     assert 'error_message="' not in r.text
+
+
+def test_gold_total_rows_exposed(client, mocker):
+    _patch_all(mocker)
+    r = client.get("/metrics")
+    assert r.status_code == 200
+    assert "gdelt_gold_table_total_rows 890.0" in r.text

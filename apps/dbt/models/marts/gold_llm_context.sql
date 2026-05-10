@@ -1,6 +1,10 @@
 {{ config(
-    materialized='table'
+    materialized='incremental',
+    unique_key='global_event_id',
+    incremental_strategy='merge'
 ) }}
+
+{% set batch_id = var('source_batch_id', none) %}
 
 with silver_data as (
     select *
@@ -12,6 +16,9 @@ with silver_data as (
                ) as rn
         from nessie.silver.gdelt_events_detailed
         where global_event_id is not null
+          {% if batch_id %}
+          and source_batch_id = '{{ batch_id }}'
+          {% endif %}
     ) t
     where rn = 1
 ),
@@ -44,6 +51,9 @@ select
     s.v2_persons,
     s.v2_organizations,
     s.v2_enhanced_themes,
+    s.source_batch_id,
+    cast(s.source_batch_time as varchar)                as source_batch_time,
+    cast(current_timestamp as timestamp(6) with time zone) as gold_processed_at,
 
     concat(
         '날짜: ',          cast(s.event_date as varchar),
@@ -63,6 +73,6 @@ select
     ) as llm_content_text
 
 from silver_data s
-left join event_codes ec  on s.event_code          = ec.code
-left join country_codes c1 on s.actor1_country_code = c1.iso_code
-left join country_codes c2 on s.actor2_country_code = c2.iso_code
+left join event_codes ec   on s.event_code           = ec.code
+left join country_codes c1 on s.actor1_country_code  = c1.iso_code
+left join country_codes c2 on s.actor2_country_code  = c2.iso_code

@@ -69,12 +69,18 @@ def find_latest_e2e_batch(namespace: str, trino_deploy: str) -> str | None:
 
 
 def fetch_stage_rows(batch_id: str, namespace: str, trino_deploy: str) -> list[StageRow]:
+    # stage별 최신 row만 (재실행 시 동일 stage에 여러 row가 생길 수 있음)
     sql = f"""
     SELECT stage, status, input_rows, output_rows, duration_seconds,
            CAST(started_at AS varchar) AS started_at,
            CAST(finished_at AS varchar) AS finished_at
-    FROM nessie.audit.pipeline_batch_runs
-    WHERE batch_id = '{batch_id}'
+    FROM (
+        SELECT *,
+               ROW_NUMBER() OVER (PARTITION BY stage ORDER BY finished_at DESC) AS rn
+        FROM nessie.audit.pipeline_batch_runs
+        WHERE batch_id = '{batch_id}'
+    ) t
+    WHERE rn = 1
     ORDER BY
       CASE stage
         WHEN 'bronze' THEN 1
@@ -96,6 +102,25 @@ def fetch_stage_rows(batch_id: str, namespace: str, trino_deploy: str) -> list[S
         )
         for r in raw
     ]
+
+
+def fetch_gold_batch_quality(batch_id: str, namespace: str, trino_deploy: str) -> dict:
+    """gold 테이블의 batch 기준 품질 지표를 반환한다."""
+    sql = f"""
+    SELECT
+      COUNT(*)                              AS table_count,
+      COUNT(DISTINCT global_event_id)       AS distinct_ids
+    FROM nessie.gold.gold_llm_context
+    WHERE source_batch_id = '{batch_id}'
+    """
+    rows = _parse_rows(_trino_exec(sql, namespace, trino_deploy))
+    if not rows:
+        return {}
+    r = rows[0]
+    return {
+        "table_count": int(r[0]),
+        "distinct_ids": int(r[1]),
+    }
 
 
 def fetch_silver_quality(batch_id: str, namespace: str, trino_deploy: str) -> dict:
@@ -234,7 +259,47 @@ def main() -> int:
             print(f"{FAIL} {row.stage} duration_seconds = {row.duration_seconds} (expected >= 0)")
             failed = True
 
-    # ── 5. silver data quality ──
+    # ── 5. gold batch quality ──
+    print()
+    print(f"{INFO} Gold batch quality (source_batch_id={batch_id}) ...")
+    gold_stage = stage_map.get("gold")
+    try:
+        gq = fetch_gold_batch_quality(batch_id, ns, td)
+    except RuntimeError as e:
+        print(f"{FAIL} Failed to query gold batch quality: {e}", file=sys.stderr)
+        failed = True
+        gq = {}
+
+    if gq:
+        table_count = gq["table_count"]
+        distinct_ids = gq["distinct_ids"]
+
+        # audit output_rows vs 실제 batch count 일치
+        if gold_stage is not None:
+            audit_out = gold_stage.output_rows
+            if audit_out == table_count:
+                print(f"{OK} gold audit output_rows == table batch count: {audit_out:,}")
+            else:
+                print(
+                    f"{FAIL} gold audit output_rows mismatch: "
+                    f"audit={audit_out:,}  table_batch_count={table_count:,}"
+                )
+                failed = True
+        else:
+            print(f"{OK} gold batch count: {table_count:,} rows")
+
+        # dedup
+        if table_count == distinct_ids:
+            print(f"{OK} gold global_event_id unique: {table_count:,} rows, no duplicates")
+        else:
+            dupes = table_count - distinct_ids
+            print(
+                f"{FAIL} gold global_event_id duplicates: {dupes:,} "
+                f"(total={table_count:,}, distinct={distinct_ids:,})"
+            )
+            failed = True
+
+    # ── 6. silver data quality ──
     print()
     print(f"{INFO} Silver data quality (source_batch_id={batch_id}) ...")
     try:

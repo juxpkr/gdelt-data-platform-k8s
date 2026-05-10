@@ -6,7 +6,8 @@ from prometheus_client import CollectorRegistry, Gauge, generate_latest, CONTENT
 
 from collectors.pipeline import collect_pipeline_metrics
 from collectors.freshness import collect_freshness_metrics
-from collectors.e2e import collect_e2e_extra_metrics
+from collectors.e2e import collect_e2e_extra_metrics, collect_gold_total_rows
+from collectors.silver_quality import collect_silver_quality_metrics
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -64,6 +65,36 @@ _failed_stage_count = Gauge(
     "Number of failed stages in the latest batch_id",
     registry=registry,
 )
+_current_batch_id = Gauge(
+    "gdelt_current_e2e_batch_id",
+    "Latest E2E complete batch_id as YYYYMMDDHHMMSS numeric gauge. 0 means no E2E batch available.",
+    registry=registry,
+)
+_gold_total_rows = Gauge(
+    "gdelt_gold_table_total_rows",
+    "Total row count of nessie.gold.gold_llm_context",
+    registry=registry,
+)
+_silver_dedup_violations = Gauge(
+    "gdelt_silver_dedup_violation_count",
+    "Duplicate global_event_id count in silver for the latest E2E complete batch",
+    registry=registry,
+)
+_silver_core_nulls = Gauge(
+    "gdelt_silver_core_null_count",
+    "Total NULL count across core columns (global_event_id, event_date, event_code, source_batch_id) in silver",
+    registry=registry,
+)
+_silver_mention_ratio = Gauge(
+    "gdelt_silver_mention_join_ratio",
+    "Ratio of silver rows with non-null mention_source_name for the latest E2E complete batch",
+    registry=registry,
+)
+_silver_gkg_ratio = Gauge(
+    "gdelt_silver_gkg_coverage_ratio",
+    "Ratio of silver rows with at least one GKG column (v2_persons/v2_organizations/v2_enhanced_themes) non-null",
+    registry=registry,
+)
 
 
 @app.get("/health")
@@ -87,16 +118,31 @@ def metrics():
         _freshness_seconds.set(freshness)
         _pipeline_health.set(health_val)
 
-        e2e_dur, retention, failed_cnt = collect_e2e_extra_metrics()
+        e2e_dur, retention, batch_id_num, failed_cnt = collect_e2e_extra_metrics()
         _e2e_duration.set(e2e_dur)
         _retention_ratio.set(retention)
+        _current_batch_id.set(batch_id_num)
         _failed_stage_count.set(failed_cnt)
+
+        gold_total = collect_gold_total_rows()
+        if gold_total < 0:
+            logger.error("collect_gold_total_rows failed")
+            _exporter_up.set(0)
+        else:
+            _gold_total_rows.set(gold_total)
+
+        sq = collect_silver_quality_metrics()
+        _silver_dedup_violations.set(sq["dedup_violations"])
+        _silver_core_nulls.set(sq["core_null_count"])
+        _silver_mention_ratio.set(sq["mention_join_ratio"])
+        _silver_gkg_ratio.set(sq["gkg_coverage_ratio"])
 
         _exporter_up.set(1)
         logger.info(
             "Metrics collected — e2e_available=%s freshness=%.0fs health=%d "
-            "e2e_dur=%.1fs retention=%.3f failed=%d",
-            e2e_available, freshness, health_val, e2e_dur, retention, failed_cnt,
+            "e2e_dur=%.1fs retention=%.3f batch_id=%.0f failed=%d gold_total=%d",
+            e2e_available, freshness, health_val,
+            e2e_dur, retention, batch_id_num, failed_cnt, gold_total,
         )
     except Exception as e:
         logger.error("Collector error: %s", e)

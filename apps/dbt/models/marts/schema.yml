@@ -17,6 +17,14 @@ models:
         description: "CAMEO 이벤트 코드"
         tests:
           - not_null
+      - name: source_batch_id
+        description: "Bronze/Silver/Gold E2E 추적용 배치 ID (YYYYMMDDHHMMSS)"
+        tests:
+          - not_null
+      - name: gold_processed_at
+        description: "Gold 테이블 반영 시각"
+        tests:
+          - not_null
       - name: llm_content_text
         description: "Gemini 입력용 한국어 컨텍스트 문자열 — concat으로 항상 생성됨"
         tests:

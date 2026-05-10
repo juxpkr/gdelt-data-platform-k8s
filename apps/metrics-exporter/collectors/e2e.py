@@ -33,28 +33,47 @@ failed_count AS (
     )
 )
 SELECT
-  to_unixtime(MAX(e.finished_at)) - to_unixtime(MIN(e.started_at)) AS e2e_duration_seconds,
+  (SELECT batch_id FROM e2e_batch)                                              AS current_batch_id,
+  to_unixtime(MAX(e.finished_at)) - to_unixtime(MIN(e.started_at))             AS e2e_duration_seconds,
   CASE
     WHEN MAX(CASE WHEN e.stage = 'bronze' THEN e.output_rows END) = 0 THEN 0.0
     ELSE CAST(MAX(CASE WHEN e.stage = 'silver' THEN e.output_rows END) AS DOUBLE)
          / MAX(CASE WHEN e.stage = 'bronze' THEN e.output_rows END)
-  END AS retention_ratio,
-  (SELECT cnt FROM failed_count) AS failed_stage_count
+  END                                                                            AS retention_ratio,
+  (SELECT cnt FROM failed_count)                                                 AS failed_stage_count
 FROM e2e_rows e
 """
 
+_GOLD_TOTAL_SQL = "SELECT COUNT(*) AS total FROM nessie.gold.gold_llm_context"
 
-def collect_e2e_extra_metrics() -> tuple[float, float, int]:
-    """(e2e_duration_seconds, retention_ratio, failed_stage_count) 반환.
 
-    E2E complete batch 없으면 (0.0, 0.0, 0) 반환.
+def collect_e2e_extra_metrics() -> tuple[float, float, float, int]:
+    """(e2e_duration_seconds, retention_ratio, current_batch_id_numeric, failed_stage_count) 반환.
+
+    E2E complete batch 없으면 (0.0, 0.0, 0.0, 0) 반환.
     """
     row = fetch_one(_SQL)
     if row is None or row.get("e2e_duration_seconds") is None:
         logger.warning("E2E extra metrics: no data returned")
-        return 0.0, 0.0, 0
+        return 0.0, 0.0, 0.0, 0
+
+    batch_id_str = row.get("current_batch_id") or ""
+    try:
+        batch_id_numeric = float(batch_id_str) if batch_id_str else 0.0
+    except (ValueError, TypeError):
+        batch_id_numeric = 0.0
+
     return (
         float(row["e2e_duration_seconds"]),
         float(row["retention_ratio"] or 0.0),
+        batch_id_numeric,
         int(row["failed_stage_count"] or 0),
     )
+
+
+def collect_gold_total_rows() -> int:
+    """gold 테이블 전체 row 수. 실패 시 -1 반환 (caller에서 exporter_up=0 처리)."""
+    row = fetch_one(_GOLD_TOTAL_SQL)
+    if row is None:
+        return -1
+    return int(row["total"] or 0)

@@ -25,7 +25,7 @@ dbt_mount = k8s.V1VolumeMount(
 
 
 def _make_audit_pod(task_id: str, name: str, status: str, trigger_rule, err_msg: str | None = None):
-    err_py = repr(err_msg)  # None → 'None' / "dbt build failed" → "'dbt build failed'"
+    err_py = repr(err_msg)
     code = f"""
 import trino, datetime, os, logging
 
@@ -50,9 +50,12 @@ conn = trino.dbapi.connect(
 )
 cur = conn.cursor()
 
+input_rows = 0
 output_rows = 0
 if "{status}" == "success":
-    cur.execute("SELECT COUNT(*) FROM nessie.gold.gold_llm_context")
+    cur.execute(f"SELECT COUNT(*) FROM nessie.silver.gdelt_events_detailed WHERE source_batch_id = '{{batch_id}}'")
+    input_rows = cur.fetchone()[0]
+    cur.execute(f"SELECT COUNT(*) FROM nessie.gold.gold_llm_context WHERE source_batch_id = '{{batch_id}}'")
     output_rows = cur.fetchone()[0]
 
 started_str = started.strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -61,13 +64,14 @@ err_sql = "NULL" if err_msg is None else "'" + err_msg.replace("'", "''") + "'"
 
 cur.execute(f\"\"\"
     INSERT INTO nessie.audit.pipeline_batch_runs VALUES (
-        '{{batch_id}}', 'gold', '{status}', 0, {{output_rows}},
+        '{{batch_id}}', 'gold', '{status}', {{input_rows}}, {{output_rows}},
         TIMESTAMP '{{started_str}}', CURRENT_TIMESTAMP, {{duration}},
         {{err_sql}}, CURRENT_TIMESTAMP
     )
 \"\"\")
 conn.commit()
-logger.info("Gold audit inserted: batch_id=%s status={status} output_rows=%d duration=%.1fs", batch_id, output_rows, duration)
+logger.info("Gold audit inserted: batch_id=%s status={status} input_rows=%d output_rows=%d duration=%.1fs",
+            batch_id, input_rows, output_rows, duration)
 """
     return KubernetesPodOperator(
         task_id=task_id,
@@ -110,18 +114,25 @@ with DAG(
             k8s.V1EnvVar(name="DBT_PROFILES_DIR", value="/app"),
             k8s.V1EnvVar(name="DBT_TARGET_PATH",  value="/tmp/dbt-target"),
             k8s.V1EnvVar(name="DBT_LOG_PATH",     value="/tmp/dbt-logs"),
+            k8s.V1EnvVar(name="SOURCE_BATCH_ID",  value="{{ dag_run.conf.get('source_batch_id', '') }}"),
         ],
         cmds=["sh", "-c"],
         arguments=[
             """
             set -eux
             mkdir -p "$DBT_TARGET_PATH" "$DBT_LOG_PATH"
+
+            if [ -z "$SOURCE_BATCH_ID" ]; then
+              echo "[WARN] SOURCE_BATCH_ID is empty — E2E batch tracking will not work" >&2
+            fi
+
             dbt build \
               --target prod \
               --project-dir /app \
               --profiles-dir /app \
               --log-path "$DBT_LOG_PATH" \
-              --target-path "$DBT_TARGET_PATH"
+              --target-path "$DBT_TARGET_PATH" \
+              --vars "{source_batch_id: $SOURCE_BATCH_ID}"
             """
         ],
         volumes=[dbt_volume],

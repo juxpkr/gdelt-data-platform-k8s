@@ -106,7 +106,7 @@ def check_dedup(batch_id: str, ns: str, td: str) -> tuple[bool, str]:
 
 def check_core_nulls(batch_id: str, ns: str, td: str) -> tuple[bool, str]:
     cols = ["global_event_id", "event_date", "event_code", "source_batch_id"]
-    cases = "\n  ".join(
+    cases = ",\n  ".join(
         f"SUM(CASE WHEN {c} IS NULL THEN 1 ELSE 0 END) AS {c}_nulls"
         for c in cols
     )
@@ -153,7 +153,7 @@ def check_mention_join(batch_id: str, ns: str, td: str) -> tuple[str, str]:
 def check_gkg_enrichment(batch_id: str, ns: str, td: str) -> tuple[str, str]:
     """GKG 컬럼은 자연스럽게 비어 있을 수 있으므로 warn only."""
     cols = ["v2_persons", "v2_organizations", "v2_enhanced_themes"]
-    cases = "\n  ".join(
+    cases = ",\n  ".join(
         f"SUM(CASE WHEN {c} IS NULL THEN 1 ELSE 0 END) AS {c}_nulls"
         for c in cols
     )
