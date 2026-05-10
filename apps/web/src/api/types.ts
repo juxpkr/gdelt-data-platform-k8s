@@ -112,8 +112,9 @@ export interface AuditRunItem {
   status: string
   input_rows: number | null
   output_rows: number | null
-  started_at: string | null
-  finished_at: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  created_at?: string | null
   duration_seconds: number | null
   error_message: string | null
 }

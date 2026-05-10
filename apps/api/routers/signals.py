@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from db.trino import fetch_all
 from models.schemas import SignalItem, SignalsResponse
+from cache import get_cached, set_cached, make_key
 
 router = APIRouter()
 
@@ -31,6 +32,10 @@ def get_signals(limit: int = Query(default=30, ge=1, le=100)):
         ORDER BY risk_score DESC
         LIMIT {limit}
     """
+    key = make_key("signals", limit=limit)
+    cached = get_cached(key)
+    if cached is not None:
+        return cached
     try:
         rows = fetch_all(sql)
         signals = [
@@ -49,6 +54,8 @@ def get_signals(limit: int = Query(default=30, ge=1, le=100)):
             )
             for r in (rows or [])
         ]
-        return SignalsResponse(signals=signals)
+        result = SignalsResponse(signals=signals)
+        set_cached(key, result)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

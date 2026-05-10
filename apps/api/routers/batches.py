@@ -1,12 +1,17 @@
 from fastapi import APIRouter, HTTPException
 from db.trino import fetch_all
 from models.schemas import BatchesResponse, BatchItem
+from cache import get_cached, set_cached, make_key
 
 router = APIRouter()
 
 
 @router.get("/batches", response_model=BatchesResponse)
 def get_batches():
+    key = make_key("batches")
+    cached = get_cached(key)
+    if cached is not None:
+        return cached
     try:
         rows = fetch_all("""
             SELECT
@@ -28,6 +33,8 @@ def get_batches():
             )
             for r in rows
         ]
-        return BatchesResponse(batches=batches)
+        result = BatchesResponse(batches=batches)
+        set_cached(key, result)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

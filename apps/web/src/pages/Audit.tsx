@@ -227,10 +227,10 @@ export function Audit() {
                     <StatusBadge status={r.status} />
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums text-zinc-400">
-                    {r.input_rows > 0 ? r.input_rows.toLocaleString() : '—'}
+                    {(r.input_rows ?? 0) > 0 ? r.input_rows!.toLocaleString() : '—'}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums text-zinc-400">
-                    {r.output_rows > 0 ? r.output_rows.toLocaleString() : '—'}
+                    {(r.output_rows ?? 0) > 0 ? r.output_rows!.toLocaleString() : '—'}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums text-zinc-400">
                     {formatDuration(r.duration_seconds)}

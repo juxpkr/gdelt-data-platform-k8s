@@ -1,12 +1,17 @@
 from fastapi import APIRouter, HTTPException
 from db.trino import fetch_one, fetch_all
 from models.schemas import StatsResponse, TopEventCodeItem
+from cache import get_cached, set_cached, make_key
 
 router = APIRouter()
 
 
 @router.get("/stats", response_model=StatsResponse)
 def get_stats():
+    key = make_key("stats")
+    cached = get_cached(key)
+    if cached is not None:
+        return cached
     try:
         total_row = fetch_one("SELECT COUNT(*) AS total_events FROM nessie.gold.gold_llm_context")
         total_events = int(total_row["total_events"]) if total_row else 0
@@ -54,7 +59,7 @@ def get_stats():
             for r in (code_rows or [])
         ]
 
-        return StatsResponse(
+        result = StatsResponse(
             total_events=total_events,
             latest_batch_id=batch_row["source_batch_id"] if batch_row else None,
             latest_batch_event_count=int(batch_row["event_count"]) if batch_row else None,
@@ -62,5 +67,7 @@ def get_stats():
             high_risk_count=int(risk_row["high_risk_count"]) if risk_row else None,
             top_event_codes=top_codes,
         )
+        set_cached(key, result)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -2,6 +2,7 @@ import re
 from fastapi import APIRouter, HTTPException, Query
 from db.trino import fetch_all, fetch_one
 from models.schemas import EventsResponse, EventItem, EventDetail
+from cache import get_cached, set_cached, make_key
 
 router = APIRouter()
 
@@ -74,10 +75,16 @@ def get_events(
         OFFSET {offset} ROWS
         LIMIT {limit}
     """
+    key = make_key("events", limit=limit, offset=offset, geo=geo, event_code=event_code, date=date, actor1=actor1)
+    cached = get_cached(key)
+    if cached is not None:
+        return cached
     try:
         rows = fetch_all(sql)
         events = [EventItem(**r) for r in rows]
-        return EventsResponse(offset=offset, limit=limit, events=events)
+        result = EventsResponse(offset=offset, limit=limit, events=events)
+        set_cached(key, result)
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -115,6 +122,10 @@ def get_event(global_event_id: str):
         WHERE g.global_event_id = '{global_event_id}'
         LIMIT 1
     """
+    key = make_key("event", id=global_event_id)
+    cached = get_cached(key)
+    if cached is not None:
+        return cached
     try:
         row = fetch_one(sql)
     except Exception as e:
@@ -122,4 +133,6 @@ def get_event(global_event_id: str):
 
     if row is None:
         raise HTTPException(status_code=404, detail="이벤트를 찾을 수 없습니다")
-    return EventDetail(**row)
+    result = EventDetail(**row)
+    set_cached(key, result)
+    return result

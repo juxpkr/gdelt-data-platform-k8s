@@ -4,9 +4,10 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
 export interface Filters {
-  geo: string
+  geo?: string
   event_code: string
   date: string
+  actor1?: string
 }
 
 interface FilterBarProps {
