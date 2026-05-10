@@ -2,7 +2,7 @@
         down reset status port-forward logs-api logs-web \
         build-api build-web undeploy-dashboard \
         install-test-deps test-spark test-api test-metrics test \
-        smoke-k3s smoke-silver-quality
+        smoke-k3s smoke-silver-quality smoke-gold
 
 RED    := \033[0;31m
 GREEN  := \033[0;32m
@@ -73,6 +73,20 @@ deploy:
 	kubectl apply -f deploy/overlays/k3s-oci/trino/trino.yaml
 	kubectl wait --namespace $(NS) --for=condition=ready pod -l app=trino --timeout=60s
 	@echo "$(GREEN)[SUCCESS]$(NC) Trino ready."
+
+	@echo "$(BLUE)[INFO]$(NC) 5.1 Initializing Trino schemas (retry until server accepts queries)..."
+	@for i in $$(seq 1 20); do \
+	  kubectl exec -n $(NS) deploy/trino -- trino --execute \
+	    "CREATE SCHEMA IF NOT EXISTS nessie.seeds; \
+	     CREATE SCHEMA IF NOT EXISTS nessie.gold; \
+	     CREATE SCHEMA IF NOT EXISTS nessie.audit;" \
+	    2>/dev/null && break; \
+	  echo "$(YELLOW)[WAIT]$(NC) Trino not ready yet (attempt $$i/20), retrying in 5s..."; \
+	  sleep 5; \
+	done
+	@kubectl exec -n $(NS) deploy/trino -- trino --execute \
+	  "CREATE TABLE IF NOT EXISTS nessie.audit.pipeline_batch_runs (batch_id VARCHAR, stage VARCHAR, status VARCHAR, input_rows BIGINT, output_rows BIGINT, started_at TIMESTAMP(6), finished_at TIMESTAMP(6), duration_seconds DOUBLE, error_message VARCHAR, created_at TIMESTAMP(6))"
+	@echo "$(GREEN)[SUCCESS]$(NC) Trino schemas and audit table initialized."
 
 	@echo "$(BLUE)[INFO]$(NC) 6. Deploying Airflow via Helm..."
 	helm repo add apache-airflow https://airflow.apache.org 2>/dev/null || true
@@ -191,3 +205,6 @@ smoke-k3s:
 
 smoke-silver-quality:
 	python3 tools/smoke/check_silver_quality.py
+
+smoke-gold:
+	python3 tools/smoke/check_gold_quality.py

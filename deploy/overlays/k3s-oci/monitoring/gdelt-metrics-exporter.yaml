@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: metrics-exporter
-          image: juxpkr/gdelt-metrics-exporter:0.1.3-arm64
+          image: juxpkr/gdelt-metrics-exporter:0.1.4-arm64
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000

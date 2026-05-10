@@ -1,19 +1,57 @@
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
-  name: gdelt-dashboard
+  name: gdelt-web-https
   namespace: gdelt
 spec:
   entryPoints:
-    - web
+    - websecure
   routes:
-    - match: PathPrefix(`/api`)
+    - match: Host(`gdelt.juseong.dev`) && PathPrefix(`/api`)
+      kind: Rule
+      priority: 20
+      services:
+        - name: gdelt-api
+          port: 8000
+    - match: Host(`gdelt.juseong.dev`)
+      kind: Rule
+      priority: 10
+      services:
+        - name: gdelt-web
+          port: 80
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: gdelt-api-https
+  namespace: gdelt
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`api.gdelt.juseong.dev`)
       kind: Rule
       services:
         - name: gdelt-api
           port: 8000
-    - match: PathPrefix(`/`)
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: gdelt-grafana-https
+  namespace: gdelt
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`grafana.gdelt.juseong.dev`)
       kind: Rule
       services:
-        - name: gdelt-web
-          port: 80
+        - name: grafana
+          port: 3000
+  tls:
+    certResolver: letsencrypt

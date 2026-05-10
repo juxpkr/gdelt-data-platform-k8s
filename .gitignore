@@ -16,6 +16,7 @@ kubectl
 secrets.yaml
 .env
 *.pem
+*-secret.yaml
 
 *.md
 !README.md

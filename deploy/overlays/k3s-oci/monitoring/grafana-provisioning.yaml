@@ -39,364 +39,1974 @@ metadata:
 data:
   gdelt-pipeline.json: |
     {
-      "title": "GDELT Pipeline Observability",
-      "uid": "gdelt-pipeline-obs",
-      "schemaVersion": 38,
-      "version": 2,
-      "refresh": "30s",
-      "time": {"from": "now-3h", "to": "now"},
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "links": [],
       "panels": [
-
         {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
           "id": 100,
-          "type": "row",
-          "title": "Summary",
-          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
-          "collapsed": false
+          "panels": [],
+          "title": "▸ Control Tower",
+          "type": "row"
         },
-
         {
+          "datasource": {
+            "uid": "gdelt-prometheus"
+          },
+          "description": "HEALTHY = 동일 batch_id의 bronze/silver/gold가 모두 success이고, failed_stage_count = 0이며, 마지막 complete E2E batch가 30분(1800s) 이내일 때",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "color": "dark-red",
+                      "index": 1,
+                      "text": "DOWN"
+                    },
+                    "1": {
+                      "color": "dark-green",
+                      "index": 0,
+                      "text": "HEALTHY"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-red",
+                    "value": 0
+                  },
+                  {
+                    "color": "dark-green",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 1
+          },
           "id": 1,
-          "type": "stat",
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_pipeline_health",
+              "legendFormat": "Health",
+              "refId": "A"
+            }
+          ],
           "title": "Pipeline Health",
-          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 1},
-          "targets": [{"expr": "gdelt_pipeline_health", "legendFormat": ""}],
-          "options": {
-            "colorMode": "background",
-            "graphMode": "none",
-            "reduceOptions": {"calcs": ["lastNotNull"]}
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
           },
+          "description": "Latest E2E complete batch_id (YYYYMMDDHHMMSS). 0 = no E2E batch available.",
           "fieldConfig": {
             "defaults": {
-              "color": {"mode": "thresholds"},
+              "color": {
+                "fixedColor": "text",
+                "mode": "fixed"
+              },
+              "decimals": 0,
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "index": 0,
+                      "text": "N/A"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  {"color": "red", "value": null},
-                  {"color": "green", "value": 1}
+                  {
+                    "color": "text",
+                    "value": 0
+                  }
                 ]
               },
-              "mappings": [
-                {"type": "value", "options": {
-                  "0": {"text": "UNHEALTHY", "index": 0},
-                  "1": {"text": "HEALTHY", "index": 1}
-                }}
-              ]
-            }
-          }
-        },
-
-        {
+              "unit": "none"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 1
+          },
           "id": 2,
-          "type": "stat",
-          "title": "E2E Complete",
-          "gridPos": {"h": 4, "w": 3, "x": 4, "y": 1},
-          "targets": [{"expr": "gdelt_e2e_complete_batch_available", "legendFormat": ""}],
           "options": {
-            "colorMode": "background",
+            "colorMode": "none",
             "graphMode": "none",
-            "reduceOptions": {"calcs": ["lastNotNull"]}
+            "justifyMode": "center",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_current_e2e_batch_id",
+              "legendFormat": "Batch ID",
+              "refId": "A"
+            }
+          ],
+          "title": "E2E Batch ID",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
           },
           "fieldConfig": {
             "defaults": {
-              "color": {"mode": "thresholds"},
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  {"color": "red", "value": null},
-                  {"color": "green", "value": 1}
+                  {
+                    "color": "dark-green",
+                    "value": 0
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 900
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 1500
+                  }
                 ]
               },
-              "mappings": [
-                {"type": "value", "options": {
-                  "0": {"text": "MISSING", "index": 0},
-                  "1": {"text": "OK", "index": 1}
-                }}
-              ]
-            }
-          }
-        },
-
-        {
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 1
+          },
           "id": 3,
-          "type": "gauge",
-          "title": "Data Freshness",
-          "gridPos": {"h": 4, "w": 6, "x": 7, "y": 1},
-          "targets": [{"expr": "gdelt_pipeline_freshness_seconds", "legendFormat": ""}],
-          "options": {
-            "reduceOptions": {"calcs": ["lastNotNull"]},
-            "orientation": "auto"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "min": 0,
-              "max": 3600,
-              "color": {"mode": "thresholds"},
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {"color": "green", "value": null},
-                  {"color": "yellow", "value": 900},
-                  {"color": "red", "value": 1800}
-                ]
-              }
-            }
-          }
-        },
-
-        {
-          "id": 8,
-          "type": "stat",
-          "title": "E2E Duration",
-          "description": "Latest E2E complete batch: bronze start → gold finish",
-          "gridPos": {"h": 4, "w": 5, "x": 13, "y": 1},
-          "targets": [{"expr": "gdelt_e2e_duration_seconds", "legendFormat": ""}],
-          "options": {
-            "colorMode": "value",
-            "graphMode": "none",
-            "reduceOptions": {"calcs": ["lastNotNull"]}
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "color": {"mode": "thresholds"},
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {"color": "green", "value": null},
-                  {"color": "yellow", "value": 180},
-                  {"color": "red", "value": 300}
-                ]
-              }
-            }
-          }
-        },
-
-        {
-          "id": 7,
-          "type": "stat",
-          "title": "Gold Table Size",
-          "description": "nessie.gold.gold_llm_context 전체 행 수 (dbt full rebuild 기준)",
-          "gridPos": {"h": 4, "w": 6, "x": 18, "y": 1},
-          "targets": [{"expr": "gdelt_latest_batch_output_rows{stage=\"gold\"}", "legendFormat": ""}],
-          "options": {
-            "colorMode": "value",
-            "graphMode": "none",
-            "reduceOptions": {"calcs": ["lastNotNull"]}
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "color": {"mode": "thresholds"},
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [{"color": "blue", "value": null}]
-              }
-            }
-          }
-        },
-
-        {
-          "id": 101,
-          "type": "row",
-          "title": "Current Batch",
-          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5},
-          "collapsed": false
-        },
-
-        {
-          "id": 4,
-          "type": "stat",
-          "title": "Stage Status",
-          "gridPos": {"h": 6, "w": 4, "x": 0, "y": 6},
-          "targets": [
-            {"expr": "gdelt_pipeline_stage_success{stage=\"bronze\"}", "legendFormat": "bronze"},
-            {"expr": "gdelt_pipeline_stage_success{stage=\"silver\"}", "legendFormat": "silver"},
-            {"expr": "gdelt_pipeline_stage_success{stage=\"gold\"}", "legendFormat": "gold"}
-          ],
           "options": {
             "colorMode": "background",
             "graphMode": "none",
-            "orientation": "horizontal",
-            "reduceOptions": {"calcs": ["lastNotNull"]}
+            "justifyMode": "center",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value",
+            "wideLayout": true
           },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_pipeline_freshness_seconds",
+              "legendFormat": "Freshness",
+              "refId": "A"
+            }
+          ],
+          "title": "Data Freshness",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
+          },
+          "description": "Bronze start → Gold finish. <8min normal, <12min warning, ≥12min danger.",
           "fieldConfig": {
             "defaults": {
-              "color": {"mode": "thresholds"},
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "max": 900,
+              "min": 0,
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  {"color": "red", "value": null},
-                  {"color": "green", "value": 1}
+                  {
+                    "color": "dark-green",
+                    "value": 0
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 480
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 720
+                  }
                 ]
               },
-              "mappings": [
-                {"type": "value", "options": {
-                  "0": {"text": "FAIL", "index": 0},
-                  "1": {"text": "OK", "index": 1}
-                }}
-              ]
-            }
-          }
-        },
-
-        {
-          "id": 5,
-          "type": "bargauge",
-          "title": "Stage Duration",
-          "gridPos": {"h": 6, "w": 8, "x": 4, "y": 6},
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 1
+          },
+          "id": 4,
+          "options": {
+            "minVizHeight": 75,
+            "minVizWidth": 75,
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "sizing": "auto"
+          },
+          "pluginVersion": "12.4.2",
           "targets": [
-            {"expr": "gdelt_pipeline_stage_duration_seconds{stage=\"bronze\"}", "legendFormat": "bronze"},
-            {"expr": "gdelt_pipeline_stage_duration_seconds{stage=\"silver\"}", "legendFormat": "silver"},
-            {"expr": "gdelt_pipeline_stage_duration_seconds{stage=\"gold\"}", "legendFormat": "gold"}
-          ],
-          "options": {
-            "orientation": "horizontal",
-            "reduceOptions": {"calcs": ["lastNotNull"]},
-            "displayMode": "gradient"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "color": {"mode": "palette-classic"}
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_e2e_duration_seconds",
+              "legendFormat": "E2E Duration",
+              "refId": "A"
             }
-          }
-        },
-
-        {
-          "id": 6,
-          "type": "bargauge",
-          "title": "Batch Output Rows",
-          "description": "bronze: ingested rows / silver: joined rows (per E2E batch)",
-          "gridPos": {"h": 6, "w": 6, "x": 12, "y": 6},
-          "targets": [
-            {"expr": "gdelt_latest_batch_output_rows{stage=\"bronze\"}", "legendFormat": "bronze"},
-            {"expr": "gdelt_latest_batch_output_rows{stage=\"silver\"}", "legendFormat": "silver"}
           ],
-          "options": {
-            "orientation": "horizontal",
-            "reduceOptions": {"calcs": ["lastNotNull"]},
-            "displayMode": "gradient"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "color": {"mode": "palette-classic"}
-            }
-          }
+          "title": "E2E Duration",
+          "type": "gauge"
         },
-
         {
-          "id": 9,
-          "type": "gauge",
-          "title": "Bronze → Silver Retention",
-          "description": "silver output_rows / bronze output_rows (latest E2E batch)",
-          "gridPos": {"h": 6, "w": 6, "x": 18, "y": 6},
-          "targets": [{"expr": "gdelt_bronze_to_silver_retention_ratio", "legendFormat": ""}],
-          "options": {
-            "reduceOptions": {"calcs": ["lastNotNull"]},
-            "orientation": "auto"
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 5
+          },
+          "id": 200,
+          "panels": [],
+          "title": "▸ Current Batch Flow",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "percentunit",
-              "min": 0,
-              "max": 1,
-              "color": {"mode": "thresholds"},
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  {"color": "red", "value": null},
-                  {"color": "yellow", "value": 0.05},
-                  {"color": "green", "value": 0.1}
+                  {
+                    "color": "text",
+                    "value": 0
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Status"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "options": {
+                          "0": {
+                            "color": "dark-red",
+                            "index": 1,
+                            "text": "● FAIL"
+                          },
+                          "1": {
+                            "color": "#FF9900",
+                            "index": 0,
+                            "text": "● OK"
+                          }
+                        },
+                        "type": "value"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "thresholds"
+                    }
+                  },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "dark-red",
+                          "value": 0
+                        },
+                        {
+                          "color": "#FF9900",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Rows"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "short"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "text",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Duration"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "s"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "text",
+                      "mode": "fixed"
+                    }
+                  }
                 ]
               }
+            ]
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 6
+          },
+          "id": 10,
+          "options": {
+            "colorMode": "none",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "horizontal",
+            "percentChangeColorMode": "inverted",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": true,
+            "textMode": "value_and_name",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "editorMode": "code",
+              "expr": "gdelt_latest_batch_output_rows{stage=\"bronze\"}",
+              "interval": "",
+              "legendFormat": "Rows",
+              "range": true,
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "editorMode": "code",
+              "expr": "gdelt_pipeline_stage_duration_seconds{stage=\"bronze\"}",
+              "legendFormat": "Duration",
+              "range": true,
+              "refId": "B"
             }
-          }
+          ],
+          "title": "BRONZE INGEST",
+          "type": "stat"
         },
-
         {
-          "id": 102,
-          "type": "row",
-          "title": "Trends",
-          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 12},
-          "collapsed": false
-        },
-
-        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": 0
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Status"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "options": {
+                          "0": {
+                            "color": "dark-red",
+                            "index": 1,
+                            "text": "● FAIL"
+                          },
+                          "1": {
+                            "color": "#B0C4DE",
+                            "index": 0,
+                            "text": "● OK"
+                          }
+                        },
+                        "type": "value"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "thresholds"
+                    }
+                  },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "dark-red",
+                          "value": 0
+                        },
+                        {
+                          "color": "#B0C4DE",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Rows"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "short"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "text",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Duration"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "s"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "text",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 6
+          },
           "id": 11,
-          "type": "timeseries",
-          "title": "Stage Duration Trend",
-          "gridPos": {"h": 8, "w": 8, "x": 0, "y": 13},
-          "targets": [
-            {"expr": "gdelt_pipeline_stage_duration_seconds{stage=\"bronze\"}", "legendFormat": "bronze"},
-            {"expr": "gdelt_pipeline_stage_duration_seconds{stage=\"silver\"}", "legendFormat": "silver"},
-            {"expr": "gdelt_pipeline_stage_duration_seconds{stage=\"gold\"}", "legendFormat": "gold"}
-          ],
           "options": {
-            "tooltip": {"mode": "multi"},
-            "legend": {"displayMode": "list", "placement": "bottom"}
+            "colorMode": "none",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "horizontal",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": true,
+            "textMode": "value_and_name",
+            "wideLayout": true
           },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "color": {"mode": "palette-classic"},
-              "custom": {"lineWidth": 2, "fillOpacity": 10}
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_latest_batch_output_rows{stage=\"silver\"}",
+              "legendFormat": "Rows",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_pipeline_stage_duration_seconds{stage=\"silver\"}",
+              "legendFormat": "Duration",
+              "refId": "C"
             }
-          }
-        },
-
-        {
-          "id": 12,
-          "type": "timeseries",
-          "title": "Output Rows Trend",
-          "gridPos": {"h": 8, "w": 8, "x": 8, "y": 13},
-          "targets": [
-            {"expr": "gdelt_latest_batch_output_rows{stage=\"bronze\"}", "legendFormat": "bronze"},
-            {"expr": "gdelt_latest_batch_output_rows{stage=\"silver\"}", "legendFormat": "silver"}
           ],
-          "options": {
-            "tooltip": {"mode": "multi"},
-            "legend": {"displayMode": "list", "placement": "bottom"}
+          "title": "SILVER ENRICHED",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
           },
           "fieldConfig": {
             "defaults": {
-              "unit": "short",
-              "color": {"mode": "palette-classic"},
-              "custom": {"lineWidth": 2, "fillOpacity": 10}
-            }
-          }
-        },
-
-        {
-          "id": 13,
-          "type": "timeseries",
-          "title": "Freshness Trend",
-          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 13},
-          "targets": [
-            {"expr": "gdelt_pipeline_freshness_seconds", "legendFormat": "freshness"},
-            {"expr": "gdelt_e2e_duration_seconds", "legendFormat": "e2e duration"}
-          ],
-          "options": {
-            "tooltip": {"mode": "multi"},
-            "legend": {"displayMode": "list", "placement": "bottom"}
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "color": {"mode": "palette-classic"},
-              "custom": {"lineWidth": 2, "fillOpacity": 10},
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
-                  {"color": "green", "value": null},
-                  {"color": "red", "value": 1800}
+                  {
+                    "color": "text",
+                    "value": 0
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Status"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "options": {
+                          "0": {
+                            "color": "dark-red",
+                            "index": 1,
+                            "text": "● FAIL"
+                          },
+                          "1": {
+                            "color": "#FFD700",
+                            "index": 0,
+                            "text": "● OK"
+                          }
+                        },
+                        "type": "value"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "thresholds"
+                    }
+                  },
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "dark-red",
+                          "value": 0
+                        },
+                        {
+                          "color": "#FFD700",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Rows"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "short"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "text",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Duration"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "s"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "text",
+                      "mode": "fixed"
+                    }
+                  }
                 ]
               }
+            ]
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 16,
+            "y": 6
+          },
+          "id": 12,
+          "options": {
+            "colorMode": "none",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "horizontal",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": true,
+            "textMode": "value_and_name",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_latest_batch_output_rows{stage=\"gold\"}",
+              "legendFormat": "Rows",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_pipeline_stage_duration_seconds{stage=\"gold\"}",
+              "legendFormat": "Duration",
+              "refId": "C"
             }
-          }
+          ],
+          "title": "GOLD SERVING",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "gdelt-prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 3,
+            "w": 12,
+            "x": 0,
+            "y": 12
+          },
+          "id": 501,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "gdelt_bronze_to_silver_retention_ratio",
+              "legendFormat": "__auto",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "B→S RETENTION",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "gdelt-prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "color": "green",
+                      "index": 0,
+                      "text": "0 CLEAN"
+                    }
+                  },
+                  "type": "value"
+                },
+                {
+                  "options": {
+                    "from": 1,
+                    "result": {
+                      "color": "red",
+                      "index": 1,
+                      "text": "value"
+                    },
+                    "to": 999
+                  },
+                  "type": "range"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "none"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 3,
+            "w": 12,
+            "x": 12,
+            "y": 12
+          },
+          "id": 502,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "gdelt_failed_stage_count",
+              "legendFormat": "__auto",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "FAILED STAGES",
+          "type": "stat"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 15
+          },
+          "id": 300,
+          "panels": [],
+          "title": "▸ Data Quality Gate",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
+          },
+          "description": "Duplicate global_event_id count in silver for latest E2E batch. Must be 0.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "color": "dark-green",
+                      "index": 0,
+                      "text": "0  CLEAN"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-green",
+                    "value": 0
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 1
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 0,
+            "y": 16
+          },
+          "id": 20,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_silver_dedup_violation_count",
+              "legendFormat": "Dedup Violations",
+              "refId": "A"
+            }
+          ],
+          "title": "Dedup Violations",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
+          },
+          "description": "Total NULLs across [global_event_id, event_date, event_code, source_batch_id] in silver latest E2E batch. Must be 0.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "0": {
+                      "color": "dark-green",
+                      "index": 0,
+                      "text": "0  CLEAN"
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-green",
+                    "value": 0
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 1
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 4,
+            "y": 16
+          },
+          "id": 21,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_silver_core_null_count",
+              "legendFormat": "Core Nulls",
+              "refId": "A"
+            }
+          ],
+          "title": "Core Null Count",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
+          },
+          "description": "Ratio of silver rows with non-null mention_source_name. Low coverage may indicate mention data delay.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-red",
+                    "value": 0
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 0.2
+                  },
+                  {
+                    "color": "dark-green",
+                    "value": 0.5
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 8,
+            "x": 8,
+            "y": 16
+          },
+          "id": 22,
+          "options": {
+            "minVizHeight": 75,
+            "minVizWidth": 75,
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "sizing": "auto"
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_silver_mention_join_ratio",
+              "legendFormat": "Mention Coverage",
+              "refId": "A"
+            }
+          ],
+          "title": "Mention Join",
+          "type": "gauge"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
+          },
+          "description": "Ratio of silver rows with at least one GKG column non-null. GKG data is naturally sparse.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-orange",
+                    "value": 0
+                  },
+                  {
+                    "color": "dark-green",
+                    "value": 0.05
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 8,
+            "x": 16,
+            "y": 16
+          },
+          "id": 23,
+          "options": {
+            "minVizHeight": 75,
+            "minVizWidth": 75,
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "sizing": "auto"
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_silver_gkg_coverage_ratio",
+              "legendFormat": "GKG Coverage",
+              "refId": "A"
+            }
+          ],
+          "title": "GKG Coverage",
+          "type": "gauge"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 20
+          },
+          "id": 400,
+          "panels": [],
+          "title": "▸ Trends",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 5,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "bronze"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "#FF9900",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "silver"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "#B0C4DE",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "gold"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "#FFD700",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 0,
+            "y": 21
+          },
+          "id": 30,
+          "options": {
+            "legend": {
+              "calcs": [
+                "last",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_pipeline_stage_duration_seconds{stage=\"bronze\"}",
+              "legendFormat": "bronze",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_pipeline_stage_duration_seconds{stage=\"silver\"}",
+              "legendFormat": "silver",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_pipeline_stage_duration_seconds{stage=\"gold\"}",
+              "legendFormat": "gold",
+              "refId": "C"
+            }
+          ],
+          "title": "Stage Latency Trend",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 8,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "bronze"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "#FF9900",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "silver"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "#B0C4DE",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "gold"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "#FFD700",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 12,
+            "y": 21
+          },
+          "id": 31,
+          "options": {
+            "legend": {
+              "calcs": [
+                "last",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_latest_batch_output_rows{stage=\"bronze\"}",
+              "legendFormat": "bronze",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_latest_batch_output_rows{stage=\"silver\"}",
+              "legendFormat": "silver",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_latest_batch_output_rows{stage=\"gold\"}",
+              "legendFormat": "gold",
+              "refId": "C"
+            }
+          ],
+          "title": "Batch Throughput (Output Rows)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "#B0C4DE",
+                "mode": "fixed"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 8,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "dark-red",
+                    "value": 0
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 0.02
+                  },
+                  {
+                    "color": "dark-green",
+                    "value": 0.1
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 24,
+            "x": 0,
+            "y": 28
+          },
+          "id": 33,
+          "options": {
+            "legend": {
+              "calcs": [
+                "last",
+                "min"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_bronze_to_silver_retention_ratio",
+              "legendFormat": "Yield",
+              "refId": "A"
+            }
+          ],
+          "title": "Bronze → Silver Yield Trend",
+          "type": "timeseries"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 33
+          },
+          "id": 500,
+          "panels": [],
+          "title": "▸ Lakehouse Storage",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
+          },
+          "description": "Total row count in nessie.gold.gold_llm_context (incremental, accumulates across batches).",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "#FFD700",
+                "mode": "fixed"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": 0
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 0,
+            "y": 34
+          },
+          "id": 40,
+          "options": {
+            "colorMode": "none",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value_and_name",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_gold_table_total_rows",
+              "legendFormat": "Gold Total",
+              "refId": "A"
+            }
+          ],
+          "title": "Gold Total Rows",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
+          },
+          "description": "Output rows written to Gold in the latest E2E complete batch.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "#FFD700",
+                "mode": "fixed"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": 0
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 8,
+            "y": 34
+          },
+          "id": 41,
+          "options": {
+            "colorMode": "none",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "percentChangeColorMode": "standard",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showPercentChange": false,
+            "textMode": "value_and_name",
+            "wideLayout": true
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_latest_batch_output_rows{stage=\"gold\"}",
+              "legendFormat": "Batch Rows",
+              "refId": "A"
+            }
+          ],
+          "title": "Gold Latest Batch Rows",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "uid": "gdelt-prometheus"
+          },
+          "description": "Total gold table size over time.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "#FFD700",
+                "mode": "fixed"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "showValues": false,
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": 0
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 16,
+            "y": 34
+          },
+          "id": 42,
+          "options": {
+            "legend": {
+              "calcs": [
+                "last"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "12.4.2",
+          "targets": [
+            {
+              "datasource": {
+                "uid": "gdelt-prometheus"
+              },
+              "expr": "gdelt_gold_table_total_rows",
+              "legendFormat": "Gold Total",
+              "refId": "A"
+            }
+          ],
+          "title": "Gold Growth Trend",
+          "type": "timeseries"
         }
-
-      ]
+      ],
+      "preload": false,
+      "refresh": "30s",
+      "schemaVersion": 42,
+      "tags": [],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-1h",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "GDELT Pipeline Audit Dashboard",
+      "uid": "admqshv",
+      "version": 3,
+      "weekStart": ""
     }
