@@ -5,7 +5,7 @@ from cachetools import TTLCache
 
 logger = logging.getLogger(__name__)
 
-_cache: TTLCache = TTLCache(maxsize=200, ttl=60)
+_cache: TTLCache = TTLCache(maxsize=200, ttl=300)
 
 
 def make_key(prefix: str, **kwargs: Any) -> str:

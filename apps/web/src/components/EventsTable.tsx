@@ -33,8 +33,8 @@ export function EventsTable({ events, onRowClick, offset, limit, onPageChange, l
               <th className="px-3 py-2 text-left text-zinc-500 uppercase tracking-widest font-medium">LOCATION</th>
               <th className="px-3 py-2 text-left text-zinc-500 uppercase tracking-widest font-medium">TYPE</th>
               <th className="px-3 py-2 text-right text-zinc-500 uppercase tracking-widest font-medium w-16">TONE</th>
-              <th className="px-3 py-2 text-right text-zinc-500 uppercase tracking-widest font-medium w-16">GLDN</th>
-              <th className="px-3 py-2 text-right text-zinc-500 uppercase tracking-widest font-medium w-14">MNTNS</th>
+              <th className="px-3 py-2 text-right text-zinc-500 uppercase tracking-widest font-medium w-16">GLDST</th>
+              <th className="px-3 py-2 text-right text-zinc-500 uppercase tracking-widest font-medium w-14">MNTN</th>
               <th className="px-3 py-2 text-center text-zinc-500 uppercase tracking-widest font-medium w-8">URL</th>
             </tr>
           </thead>

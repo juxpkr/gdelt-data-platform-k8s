@@ -1,30 +1,18 @@
 import { useEffect, useState } from 'react'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, MapPin } from 'lucide-react'
 import { fetchEventDetail } from '@/api/client'
 import type { EventDetail } from '@/api/types'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetBody } from '@/components/ui/sheet'
+import { Badge } from '@/components/ui/badge'
 
 interface EventDetailPanelProps {
   eventId: string | null
   onClose: () => void
 }
 
-function Row({ label, value }: { label: string; value: string | number | null | undefined }) {
-  if (value == null || value === '') return null
-  return (
-    <div className="flex gap-3">
-      <dt className="text-xs font-mono text-zinc-600 w-24 flex-shrink-0 pt-0.5">{label}</dt>
-      <dd className="text-xs font-mono text-zinc-300 break-words flex-1">{String(value)}</dd>
-    </div>
-  )
-}
-
-function Section({ title }: { title: string }) {
-  return (
-    <p className="text-xs font-mono text-amber-400/70 uppercase tracking-widest pt-3 border-t border-zinc-800 mt-3">
-      {title}
-    </p>
-  )
+function splitEntities(value: string | null, max = 8): string[] {
+  if (!value) return []
+  return value.split(/[;,]/).map(s => s.trim()).filter(Boolean).slice(0, max)
 }
 
 export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
@@ -41,6 +29,10 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
       .finally(() => setLoading(false))
   }, [eventId])
 
+  const persons = detail ? splitEntities(detail.v2_persons) : []
+  const orgs = detail ? splitEntities(detail.v2_organizations) : []
+  const themes = detail ? splitEntities(detail.v2_enhanced_themes, 6) : []
+
   return (
     <Sheet open={!!eventId} onOpenChange={(open) => { if (!open) onClose() }}>
       <SheetContent>
@@ -51,18 +43,44 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
             {detail?.event_date && <span className="text-amber-400/60">{detail.event_date}</span>}
           </div>
         </SheetHeader>
+
         <SheetBody>
           {loading && <p className="text-xs font-mono text-zinc-600">LOADING...</p>}
           {error && <p className="text-xs font-mono text-red-500">ERROR: {error}</p>}
-          {detail && (
-            <dl className="space-y-1.5">
-              <Section title="Location & Event" />
-              <Row label="LOCATION" value={detail.action_geo_fullname} />
-              <Row label="EVENT CODE" value={detail.event_code} />
-              <Row label="EVENT TYPE" value={detail.event_code_name} />
 
-              <Section title="Metrics" />
-              <div className="grid grid-cols-2 gap-2 mt-2">
+          {detail && (
+            <div className="space-y-5">
+
+              {/* 이벤트 제목 + 액터 흐름 + 위치 */}
+              <div className="space-y-2">
+                <p className="text-base font-semibold text-zinc-100 leading-snug">
+                  {detail.event_code_name ?? `EVENT ${detail.event_code}`}
+                </p>
+                <div className="flex items-center gap-2 flex-wrap text-sm">
+                  <span className="text-zinc-200">{detail.actor1_name ?? '미상'}</span>
+                  {detail.actor1_country_code && (
+                    <span className="text-xs font-mono text-zinc-600">[{detail.actor1_country_code}]</span>
+                  )}
+                  {detail.actor2_name && (
+                    <>
+                      <span className="text-zinc-600">→</span>
+                      <span className="text-zinc-200">{detail.actor2_name}</span>
+                      {detail.actor2_country_code && (
+                        <span className="text-xs font-mono text-zinc-600">[{detail.actor2_country_code}]</span>
+                      )}
+                    </>
+                  )}
+                </div>
+                {detail.action_geo_fullname && (
+                  <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+                    <MapPin className="h-3 w-3 flex-shrink-0" />
+                    <span>{detail.action_geo_fullname}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* 수치 그리드 */}
+              <div className="grid grid-cols-2 gap-2">
                 {detail.avg_tone != null && (
                   <div className="border border-zinc-800 bg-zinc-900 p-2">
                     <p className="text-xs font-mono text-zinc-600">AVG TONE</p>
@@ -93,41 +111,66 @@ export function EventDetailPanel({ eventId, onClose }: EventDetailPanelProps) {
                 )}
               </div>
 
-              <Section title="Actor" />
-              <Row label="ACTOR 1" value={detail.actor1_name} />
-              <Row label="COUNTRY" value={detail.actor1_country_code} />
-              <Row label="ACTOR 2" value={detail.actor2_name} />
-              <Row label="COUNTRY" value={detail.actor2_country_code} />
-
-              <Section title="Source" />
-              <Row label="SOURCE" value={detail.mention_source_name} />
-              <Row label="SRC TONE" value={detail.mention_doc_tone} />
-              {detail.source_url && (
-                <a href={detail.source_url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs font-mono text-amber-400/60 hover:text-amber-400 break-all mt-1">
-                  <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                  {detail.source_url.slice(0, 60)}{detail.source_url.length > 60 ? '…' : ''}
-                </a>
-              )}
-
-              {(detail.v2_persons || detail.v2_organizations || detail.v2_enhanced_themes) && (
-                <>
-                  <Section title="Entities" />
-                  <Row label="PERSONS" value={detail.v2_persons} />
-                  <Row label="ORGS" value={detail.v2_organizations} />
-                  <Row label="THEMES" value={detail.v2_enhanced_themes} />
-                </>
-              )}
-
-              <Section title="LLM Context" />
-              {detail.llm_content_text ? (
-                <div className="border border-zinc-800 bg-black p-3 text-xs font-mono leading-relaxed whitespace-pre-wrap break-words max-h-56 overflow-y-auto text-zinc-400 mt-1">
-                  {detail.llm_content_text}
+              {/* 소스 */}
+              {(detail.mention_source_name || detail.source_url) && (
+                <div className="space-y-1.5 pt-3 border-t border-zinc-800">
+                  <p className="text-xs font-mono text-amber-400/70 uppercase tracking-widest">Source</p>
+                  {detail.mention_source_name && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-zinc-400">{detail.mention_source_name}</span>
+                      {detail.mention_doc_tone != null && (
+                        <span className={`text-xs font-mono ${detail.mention_doc_tone >= 0 ? 'text-emerald-400/70' : 'text-red-400/70'}`}>
+                          tone {detail.mention_doc_tone.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {detail.source_url && (
+                    <a href={detail.source_url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs text-amber-400/60 hover:text-amber-400 break-all">
+                      <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                      {detail.source_url.slice(0, 60)}{detail.source_url.length > 60 ? '…' : ''}
+                    </a>
+                  )}
                 </div>
-              ) : (
-                <p className="text-xs font-mono text-zinc-700 italic">NO LLM CONTEXT</p>
               )}
-            </dl>
+
+              {/* 엔티티 */}
+              {(persons.length > 0 || orgs.length > 0 || themes.length > 0) && (
+                <div className="space-y-3 pt-3 border-t border-zinc-800">
+                  <p className="text-xs font-mono text-amber-400/70 uppercase tracking-widest">Entities</p>
+                  {persons.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-mono text-zinc-600">인물</p>
+                      <div className="flex flex-wrap gap-1">
+                        {persons.map(p => <Badge key={p}>{p}</Badge>)}
+                      </div>
+                    </div>
+                  )}
+                  {orgs.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-mono text-zinc-600">기관</p>
+                      <div className="flex flex-wrap gap-1">
+                        {orgs.map(o => (
+                          <Badge key={o} className="bg-blue-500/10 text-blue-400 border border-blue-500/25">{o}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {themes.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-xs font-mono text-zinc-600">테마</p>
+                      <div className="flex flex-wrap gap-1">
+                        {themes.map(t => (
+                          <Badge key={t} className="bg-zinc-800/60 text-zinc-500 text-xs">{t}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            </div>
           )}
         </SheetBody>
       </SheetContent>

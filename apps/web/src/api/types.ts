@@ -10,11 +10,13 @@ export interface TopEventCodeItem {
 }
 
 export interface StatsResponse {
-  total_events: number
+  total_processed_events: number
+  recent_events: number
   latest_batch_id: string | null
   latest_batch_event_count: number | null
   avg_tone: number | null
   high_risk_count: number | null
+  window_days: number
   top_event_codes: TopEventCodeItem[]
 }
 

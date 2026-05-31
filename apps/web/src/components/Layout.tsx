@@ -14,9 +14,11 @@ export function Layout() {
   return (
     <div className="min-h-screen bg-zinc-950">
       <nav className="bg-black border-b border-zinc-800 px-6 h-10 flex items-center gap-0">
-        <div className="flex items-center gap-2 mr-8 border-r border-zinc-800 pr-6">
-          <span className="font-mono font-bold text-amber-400 text-sm tracking-widest">GDELT</span>
-          <span className="font-mono text-zinc-500 text-xs tracking-wide">INTELLIGENCE</span>
+        <div className="flex items-center mr-8 border-r border-zinc-800 pr-6">
+          <span className="font-mono text-sm font-bold tracking-widest">
+            <span className="text-amber-400">GDELT</span>
+            <span className="ml-1.5 text-zinc-300">CONSOLE</span>
+          </span>
         </div>
         {navItems.map(({ to, label }) => (
           <NavLink

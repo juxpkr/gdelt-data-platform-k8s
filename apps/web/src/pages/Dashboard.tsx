@@ -10,7 +10,7 @@ import { EventDetailPanel } from '@/components/EventDetailPanel'
 function PageHeader({ title, sub }: { title: string; sub?: string }) {
   return (
     <div className="border-b border-zinc-800 pb-3 mb-6">
-      <p className="text-xs font-mono text-amber-400/60 uppercase tracking-widest mb-0.5">GDELT Intelligence</p>
+      <p className="text-xs font-mono text-amber-400/60 uppercase tracking-widest mb-0.5">GDELT CONSOLE</p>
       <h1 className="text-lg font-mono font-bold text-zinc-100 tracking-wide">{title}</h1>
       {sub && <p className="text-xs font-mono text-zinc-600 mt-0.5">{sub}</p>}
     </div>
@@ -52,24 +52,24 @@ export function Dashboard() {
     <div className="space-y-6">
       <PageHeader
         title="OVERVIEW DASHBOARD"
-        sub="Real-time GDELT event signal monitoring"
+        sub="Event pipeline status and serving metrics"
       />
 
       {/* KPI row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-zinc-800">
-        <StatCard label="TOTAL EVENTS" value={stats?.total_events?.toLocaleString() ?? null} />
+        <StatCard label="TOTAL PROCESSED" value={stats?.total_processed_events?.toLocaleString() ?? null} sub="cumulative" />
         <StatCard
           label="LATEST BATCH"
           value={stats?.latest_batch_id ? formatBatchId(stats.latest_batch_id) : null}
           sub={stats?.latest_batch_event_count != null ? `${stats.latest_batch_event_count.toLocaleString()} events` : undefined}
         />
         <StatCard
-          label="AVG TONE"
+          label={`AVG TONE (${stats?.window_days ?? 7}D)`}
           value={stats?.avg_tone != null ? stats.avg_tone.toFixed(3) : null}
           valueClass={tonePositive ? 'text-emerald-400' : 'text-red-400'}
         />
         <StatCard
-          label="HIGH RISK SIGNALS"
+          label={`HIGH RISK (${stats?.window_days ?? 7}D)`}
           value={stats?.high_risk_count?.toLocaleString() ?? null}
           valueClass="text-red-400"
         />

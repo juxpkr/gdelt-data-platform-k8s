@@ -14,11 +14,13 @@ class TopEventCodeItem(BaseModel):
 
 
 class StatsResponse(BaseModel):
-    total_events: int
+    total_processed_events: int
+    recent_events: int
     latest_batch_id: Optional[str]
     latest_batch_event_count: Optional[int]
     avg_tone: Optional[float]
     high_risk_count: Optional[int]
+    window_days: int = 7
     top_event_codes: list[TopEventCodeItem] = []
 
 
