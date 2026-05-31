@@ -1,6 +1,6 @@
-# GDELT 글로벌 뉴스 이벤트 인텔리전스 플랫폼
+# GDELT 글로벌 뉴스 이벤트 플랫폼
 
-GDELT API로 수집한 전 세계 뉴스 이벤트 데이터를 Kafka → PySpark → Apache Iceberg → dbt-Trino → FastAPI → React로 처리하는 실시간 데이터 플랫폼. OCI A1 Ampere(ARM64) 단일 노드 k3s 위에서 완전 동작한다.
+GDELT API로 수집한 전 세계 뉴스 이벤트 데이터를 Kafka → PySpark → Apache Iceberg → dbt-Trino → FastAPI → React로 처리하는 실시간 데이터 플랫폼. OCI A1 Ampere(ARM64) 단일 노드 k3s 위에서 동작한다.
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
 ![Spark](https://img.shields.io/badge/Apache%20Spark-3.5.6-orange)
@@ -25,7 +25,6 @@ GDELT API로 수집한 전 세계 뉴스 이벤트 데이터를 Kafka → PySpar
 9. [테스트 전략](#9-테스트-전략)
 10. [트러블슈팅 기록](#10-트러블슈팅-기록)
 11. [디렉토리 구조](#11-디렉토리-구조)
-12. [로드맵](#12-로드맵)
 
 ---
 
@@ -532,35 +531,3 @@ make smoke-gold
 │   └── check_gold_quality.py
 └── Makefile                                # 전체 배포 자동화
 ```
-
----
-
-## 12. 로드맵
-
-### 완료
-
-- [x] kind → k3s OCI A1 Ampere ARM64 마이그레이션
-- [x] Airflow 3.x 업그레이드 (LocalExecutor, Redis 제거)
-- [x] Kafka KRaft 전환 (Zookeeper 제거)
-- [x] Elasticsearch → Prometheus + Grafana 교체
-- [x] Delta Lake → Apache Iceberg 전면 전환 (Bronze / Silver / Gold)
-- [x] Nessie REST Catalog 배포 (RocksDB + PVC, Recreate 전략)
-- [x] Bronze 파이프라인 (Kafka → Iceberg MERGE INTO, source_batch_id 멱등성)
-- [x] Silver 파이프라인 (3-Way Bridge Join, MERGE INTO, dedup)
-- [x] Trino 480 배포 및 Nessie Iceberg 카탈로그 연결
-- [x] dbt-trino Gold 파이프라인 (incremental MERGE, event_date 파티션)
-- [x] Audit 관찰성 시스템 (pipeline_batch_runs, write_audit(), E2E batch_id 추적)
-- [x] Prometheus metrics-exporter 15개 메트릭, ARM64 이미지 (0.1.4)
-- [x] Grafana Control Tower 대시보드 (5섹션 22패널, ConfigMap 프로비저닝)
-- [x] FastAPI 백엔드 9개 엔드포인트 (Trino 연결, TTLCache 300s)
-- [x] React 프론트엔드 6페이지 (다크 테마, 30초 자동 갱신)
-- [x] TDD 79개 구성 (Python 60 + Web 19)
-- [x] Smoke 테스트 3개 (E2E / Silver Quality / Gold Quality)
-- [x] ARM64 커스텀 Docker 이미지 5종
-
-### 미완료
-
-- [ ] **K8s Secret** — MinIO / Kafka / Trino 자격증명 Secret으로 전환
-- [ ] **데이터 카탈로그** — OpenMetadata 도입 검토 중
-- [ ] **Iceberg Maintenance 정책** — snapshot expiration, orphan file cleanup, 필요 시 Gold 중심 retention 검토
-- [ ] **Iceberg Retention 정책** — bronze 3일 / silver 7일 / gold 14일 자동 정리 DAG
