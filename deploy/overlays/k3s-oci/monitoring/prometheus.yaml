@@ -29,6 +29,8 @@ data:
           - targets: [minio.gdelt.svc.cluster.local:9000]
 
       - job_name: gdelt-metrics-exporter
+        scrape_interval: 60s
+        scrape_timeout: 55s
         static_configs:
           - targets: [gdelt-metrics-exporter.gdelt.svc.cluster.local:8000]
         metrics_path: /metrics

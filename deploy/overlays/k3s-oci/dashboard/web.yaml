@@ -16,7 +16,7 @@ spec:
       containers:
         - name: web
           image: juxpkr/gdelt-web:0.1.0-arm64
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 80

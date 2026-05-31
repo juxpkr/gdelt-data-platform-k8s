@@ -75,6 +75,15 @@ def merge_to_silver(spark: SparkSession, df: DataFrame, table: str, merge_key: s
         """)
 
 
+def _skip_reason(bronze_dfs: dict, events_silver) -> str | None:
+    """skip 조건이면 이유 문자열 반환, 정상 처리면 None 반환."""
+    if not bronze_dfs:
+        return "no_bronze_data"
+    if events_silver is None:
+        return "no_events"
+    return None
+
+
 def main():
     logger.info("Starting GDELT Silver Processor...")
 
@@ -90,9 +99,6 @@ def main():
 
     try:
         bronze_dfs = read_from_bronze(spark, batch_id)
-        if not bronze_dfs:
-            logger.warning("No bronze data found. Exiting.")
-            return
 
         events_df   = bronze_dfs.get("events")
         mentions_df = bronze_dfs.get("mentions")
@@ -101,6 +107,19 @@ def main():
         events_silver   = transform_events_to_silver(events_df)    if events_df   else None
         mentions_silver = transform_mentions_to_silver(mentions_df) if mentions_df else None
         gkg_silver      = transform_gkg_to_silver(gkg_df)           if gkg_df      else None
+
+        reason = _skip_reason(bronze_dfs, events_silver)
+        if reason:
+            logger.info(f"Skipping silver join for batch {batch_id}: {reason}")
+            finished_at = datetime.now(timezone.utc)
+            write_audit(
+                spark, batch_id, "silver", "skipped",
+                0, 0,
+                started_at, finished_at,
+                (finished_at - started_at).total_seconds(),
+                error_message=reason,
+            )
+            return
 
         if events_silver:
             merge_to_silver(spark, events_silver, SILVER_TABLES["events"], "global_event_id")

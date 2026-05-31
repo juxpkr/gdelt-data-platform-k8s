@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: gold_llm_context
-    description: "Silver 이벤트 중복 제거 후 LLM 컨텍스트 포함 Gold 테이블 (global_event_id 기준 1 row)"
+    description: "Silver 이벤트 중복 제거 후 이벤트 상세 조회와 외부 소비용 context를 포함한 Gold 테이블 (global_event_id 기준 1 row)"
     columns:
       - name: global_event_id
         description: "GDELT 고유 이벤트 ID — dedup key"
@@ -26,6 +26,6 @@ models:
         tests:
           - not_null
       - name: llm_content_text
-        description: "Gemini 입력용 한국어 컨텍스트 문자열 — concat으로 항상 생성됨"
+        description: "이벤트 상세 조회와 외부 소비를 위한 한국어 Gold context 문자열 — concat으로 항상 생성됨"
         tests:
           - not_null

@@ -1,7 +1,17 @@
+{#
+  incremental_predicates: MERGE target scan을 event_date 파티션 기준으로 제한.
+  event_date 파티션이 적용되어 pruning이 실제로 작동함.
+  7일 이상 과거 데이터 백필 시 중복 삽입 가능성 있음 (파티션 범위 밖).
+#}
 {{ config(
     materialized='incremental',
     unique_key='global_event_id',
-    incremental_strategy='merge'
+    incremental_strategy='merge',
+    incremental_predicates=["DBT_INTERNAL_DEST.event_date >= current_date - interval '7' day"],
+    properties={
+        "format": "'PARQUET'",
+        "partitioning": "ARRAY['event_date']"
+    }
 ) }}
 
 {% set batch_id = var('source_batch_id', none) %}
